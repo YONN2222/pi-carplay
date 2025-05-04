@@ -132,7 +132,7 @@ function createWindow(): void {
   useContentSize: true,
   frame: false,
   autoHideMenuBar: true,
-  backgroundColor: '#000',
+  backgroundColor: '#000000',
   webPreferences: {
     preload: join(__dirname, '../preload/index.js'),
     sandbox: false,

@@ -121,7 +121,7 @@ onmessage = async (event: MessageEvent<Command>) => {
 
     case 'start':
         if (carplayWeb) {
-          await carplayWeb.stop(); // Cleanup existing instance first
+          await carplayWeb.stop();
           carplayWeb = null;
         }
         config = event.data.payload.config;
