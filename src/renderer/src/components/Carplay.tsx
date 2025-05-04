@@ -41,6 +41,7 @@ const Carplay: React.FC<CarplayProps> = ({
   const setDongleConnected = useStatusStore(s => s.setDongleConnected)
   const isStreaming = useStatusStore(s => s.isStreaming)
   const setStreaming = useStatusStore(s => s.setStreaming)
+  const resetInfo = useCarplayStore(s => s.resetInfo)
   const [isResettingDongle, setIsResettingDongle] = useState(false)
 
   // Fallback
@@ -138,10 +139,12 @@ const Carplay: React.FC<CarplayProps> = ({
       const { type, payload, message } = ev.data
       switch (type) {
         case "plugged":
-          setStreaming(true)
+          setDongleConnected(true)
           break
         case "unplugged":
+          setDongleConnected(false)
           setStreaming(false)
+          resetInfo() 
           break
         case "requestBuffer":
           clearRetryTimeout()
@@ -152,6 +155,7 @@ const Carplay: React.FC<CarplayProps> = ({
           processAudio(message)
           break
         case "audioInfo":
+          console.log("Received audio info:", payload)
           setAudioInfo({
             codec: payload.codec,
             sampleRate: payload.sampleRate,
@@ -171,10 +175,10 @@ const Carplay: React.FC<CarplayProps> = ({
         }
         case "dongleInfo":
           setDeviceInfo(payload)
-          setDongleConnected(true)
           break
         case "resolution":
           setNegotiatedResolution(payload.width, payload.height)
+          setStreaming(true)
           break
         case "failure":
           if (!retryTimeoutRef.current) {
@@ -223,6 +227,9 @@ const Carplay: React.FC<CarplayProps> = ({
   // USB Connect/Disconnect + Initial Check
   useEffect(() => {
     const onUsbConnect = async () => {
+      resetInfo()
+      setIsResettingDongle(true)
+
       const device = await findDevice()
       if (device) {
         setDeviceFound(true)
@@ -239,6 +246,7 @@ const Carplay: React.FC<CarplayProps> = ({
         setReceivingVideo(false)
         setStreaming(false)
         setDongleConnected(false)
+        resetInfo()
     
         if (canvasRef.current) {
           canvasRef.current.style.width = "0"
@@ -278,14 +286,7 @@ const Carplay: React.FC<CarplayProps> = ({
       navigator.usb.removeEventListener("connect", onUsbConnect)
       navigator.usb.removeEventListener("disconnect", onUsbDisconnect)
     }
-  }, [
-    carplayWorker,
-    setReceivingVideo,
-    setDongleConnected,
-    setStreaming,
-    config,
-    navigate,
-  ])
+  }, [ carplayWorker, setReceivingVideo, setDongleConnected, setStreaming, config, navigate, ])
 
   // Cleanup
   useEffect(() => {
@@ -300,6 +301,7 @@ const Carplay: React.FC<CarplayProps> = ({
     const h = (ev: MessageEvent<any>) => {
       if (ev.data.type === "resolution") {
         setNegotiatedResolution(ev.data.payload.width, ev.data.payload.height)
+        setStreaming(true)
       }
     }
     renderWorker.addEventListener("message", h)

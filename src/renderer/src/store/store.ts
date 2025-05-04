@@ -12,7 +12,8 @@ export interface CarplayStore {
   settings: ExtraConfig | null
   saveSettings: (settings: ExtraConfig) => void
   getSettings: () => void
-  stream: (stream: Stream) => void
+  stream: (stream: any) => void
+  resetInfo: () => void
 
   // Display-Resolution
   negotiatedWidth: number | null
@@ -53,7 +54,7 @@ export interface CarplayStore {
 export const useCarplayStore = create<CarplayStore>((set) => ({
   settings: null,
   saveSettings: (settings) => {
-    set(() => ({ settings }))
+    set({ settings })
     socket.emit('saveSettings', settings)
   },
   getSettings: () => {
@@ -62,6 +63,22 @@ export const useCarplayStore = create<CarplayStore>((set) => ({
   stream: (stream) => {
     socket.emit('stream', stream)
   },
+
+  // Reset all stored info
+  resetInfo: () =>
+    set({
+      negotiatedWidth: null,
+      negotiatedHeight: null,
+      serial: null,
+      manufacturer: null,
+      product: null,
+      fwVersion: null,
+      audioCodec: null,
+      audioSampleRate: null,
+      audioChannels: null,
+      audioBitDepth: null,
+      audioPcmData: null,
+    }),
 
   negotiatedWidth: null,
   negotiatedHeight: null,
@@ -76,21 +93,21 @@ export const useCarplayStore = create<CarplayStore>((set) => ({
   audioBitDepth: null,
 
   audioPcmData: null,
-  setPcmData: (data) => set(() => ({ audioPcmData: data })),
+  setPcmData: (data) => set({ audioPcmData: data }),
 
   setDeviceInfo: ({ serial, manufacturer, product, fwVersion }) =>
-    set(() => ({ serial, manufacturer, product, fwVersion })),
+    set({ serial, manufacturer, product, fwVersion }),
 
   setNegotiatedResolution: (width, height) =>
-    set(() => ({ negotiatedWidth: width, negotiatedHeight: height })),
+    set({ negotiatedWidth: width, negotiatedHeight: height }),
 
   setAudioInfo: ({ codec, sampleRate, channels, bitDepth }) =>
-    set(() => ({
+    set({
       audioCodec: codec,
       audioSampleRate: sampleRate,
       audioChannels: channels,
       audioBitDepth: bitDepth,
-    })),
+    }),
 }))
 
 // Status store
@@ -115,13 +132,13 @@ export const useStatusStore = create<StatusStore>((set) => ({
   isDongleConnected: false,
   isStreaming: false,
 
-  setDongleConnected: (connected) => set(() => ({ isDongleConnected: connected })),
-  setStreaming: (streaming) => set(() => ({ isStreaming: streaming })),
-  setReverse: (reverse) => set(() => ({ reverse })),
-  setLights: (lights) => set(() => ({ lights })),
+  setDongleConnected: (connected) => set({ isDongleConnected: connected }),
+  setStreaming: (streaming) => set({ isStreaming: streaming }),
+  setReverse: (reverse) => set({ reverse }),
+  setLights: (lights) => set({ lights }),
 }))
 
-//  Socket.IO Event-Handler
+// Socket.IO Event-Handler
 socket.on('settings', (settings: ExtraConfig) => {
   useCarplayStore.setState({ settings })
 })

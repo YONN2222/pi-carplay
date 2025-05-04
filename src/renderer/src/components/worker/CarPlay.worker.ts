@@ -26,6 +26,15 @@ const handleMessage = (message: CarplayMessage) => {
   const { type, message: payload } = message;
 
   if (type === 'video' && videoPort) {
+    if (payload.width && payload.height) {
+      self.postMessage({
+        type: 'resolution',
+        payload: {
+          width: payload.width,
+          height: payload.height
+        }
+      });
+    }
     videoPort.postMessage(new RenderEvent(payload.data), [payload.data.buffer]);
 
   } else if (type === 'audio' && payload.data) {
@@ -111,7 +120,10 @@ onmessage = async (event: MessageEvent<Command>) => {
     }
 
     case 'start':
-      if (carplayWeb) return;
+        if (carplayWeb) {
+          await carplayWeb.stop(); // Cleanup existing instance first
+          carplayWeb = null;
+        }
         config = event.data.payload.config;
         const device = await findDevice();
         if (device) {
@@ -144,6 +156,7 @@ onmessage = async (event: MessageEvent<Command>) => {
     case 'stop':
       await carplayWeb?.stop();
       carplayWeb = null;
+      audioInfoSent = false;
       break;
 
     case 'frame':
