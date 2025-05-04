@@ -128,11 +128,11 @@ function createWindow(): void {
   mainWindow = new BrowserWindow({
   width: config.width,
   height: config.height,
-  kiosk: config.kiosk,
+  kiosk: false,
   useContentSize: true,
   frame: false,
   autoHideMenuBar: true,
-  backgroundColor: '#000',
+  backgroundColor: '#000000',
   webPreferences: {
     preload: join(__dirname, '../preload/index.js'),
     sandbox: false,
@@ -182,7 +182,8 @@ if (is.dev) {
 
   mainWindow.once('ready-to-show', () => {
     mainWindow.show()
-    if (is.dev) mainWindow.webContents.openDevTools({ mode: 'detach' });
+    if (config?.kiosk) mainWindow.setKiosk(true)
+    if (is.dev) mainWindow.webContents.openDevTools({ mode: 'detach' })
   })
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
