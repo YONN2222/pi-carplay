@@ -190,7 +190,7 @@ const Carplay: React.FC<CarplayProps> = ({
           break
         case "resolution":
           if (!hasStartedRef.current) {
-            console.log("[MSG] resolution received → setStreaming(true)")
+            console.log("[MSG] resolution received: setStreaming(true)")
             setNegotiatedResolution(payload.width, payload.height)
             setStreaming(true)
             hasStartedRef.current = true
@@ -246,7 +246,7 @@ const Carplay: React.FC<CarplayProps> = ({
         setDeviceFound(true)
         setDongleConnected(true)
         setReceivingVideo(true)
-        console.log("[USB] start after connect → setStreaming(true)")
+        console.log("[USB] start after connect: setStreaming(true)")
         carplayWorker.postMessage({ type: "start", payload: { config } })
       }
     }
@@ -279,7 +279,7 @@ const Carplay: React.FC<CarplayProps> = ({
           setDeviceFound(true)
           setDongleConnected(true)
           setReceivingVideo(true)
-          console.log("[USB] initial check → setStreaming(true)")
+          console.log("[USB] initial check: setStreaming(true)")
           carplayWorker.postMessage({ type: "start", payload: { config } })
         }
       } catch (e) {
