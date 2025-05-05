@@ -40,87 +40,24 @@ if (Object.keys(config).sort().join(',') !== Object.keys(EXTRA_CONFIG).sort().jo
 }
 socket = new Socket(config, saveSettings)
 
-// USB Reset function (no WebUSB)
+// USB reset
 async function forceUsbReset(): Promise<boolean> {
   const devices = usb.getDeviceList()
-  console.log(`[USB DEBUG] ${devices.length} Geräte gefunden:`)
-  devices.forEach(d => {
-    const { idVendor, idProduct } = d.deviceDescriptor
-    console.log(
-      `  • Vendor: 0x${idVendor.toString(16).padStart(4,'0')} (${idVendor}), ` +
-      `Product: 0x${idProduct.toString(16).padStart(4,'0')} (${idProduct})`
-    )
-  })
-
   const dongle = devices.find(d =>
     d.deviceDescriptor.idVendor  === 0x1314 &&
     [0x1520, 0x1521].includes(d.deviceDescriptor.idProduct)
   )
-  if (!dongle) {
-    console.warn('[USB] Kein CarPlay-Dongle gefunden für Hardware-Reset.')
-    return false
-  }
-
+  if (!dongle) return false
   try {
     dongle.open()
     await new Promise<void>((res, rej) =>
       dongle.reset(err => err ? rej(err) : res())
     )
     dongle.close()
-    console.log('[USB] Hardware-Reset erfolgreich.')
     return true
-  } catch (err) {
-    console.error('[USB] Hardware-Reset fehlgeschlagen:', err)
+  } catch {
     return false
   }
-}
-
-// USB handlers
-const setupUsbHandlers = () => {
-  ipcMain.handle('usb-request-device', async () => {
-    const device = devices.find(d => d.vendorId === 4884 && [5408, 5409].includes(d.productId))
-    if (!device) throw new Error('CarPlay device not found')
-    mainWindow.webContents.send('usb-connect', device)
-    return device
-  })
-
-
-  ipcMain.handle('usb-disconnect', async (_, deviceId: string) => {
-    const device = devices.find(d => d.deviceId === deviceId)
-    if (device) {
-      await session.defaultSession.disconnectUSBDevice(device)
-      console.log('[USB] device disconnected')
-    }
-  })
-
-  ipcMain.handle('usb-connect', async (_, deviceId: string) => {
-    const device = devices.find(d => d.deviceId === deviceId)
-    if (device) {
-      await session.defaultSession.connectUSBDevice(device)
-      console.log('[USB] device reconnected')
-      mainWindow.webContents.send('usb-connect', device)
-      return true
-    }
-    return false
-  })
-
-  app.on('web-contents-created', (_, contents) => {
-    contents.session.on('usb-device-added', (_, dev) => {
-      if (dev.vendorId === 4884 && [5408, 5409].includes(dev.productId)) {
-        mainWindow.webContents.send('usb-connect', dev)
-      }
-    })
-    contents.session.on('usb-device-removed', (_, dev) => {
-      if (dev.vendorId === 4884 && [5408, 5409].includes(dev.productId)) {
-        mainWindow.webContents.send('usb-disconnect', dev)
-      }
-    })
-  })
-}
-
-// Settings IPC handler
-const handleSettingsReq = (_: IpcMainEvent) => {
-  mainWindow.webContents.send('settings', config)
 }
 
 // Create main window
@@ -199,22 +136,6 @@ if (is.dev) {
   }
 }
 
-const handleRestartDongle = async (): Promise<boolean> => {
-  try {
-    const device = devices.find(d => d.vendorId === 4884 && [5408, 5409].includes(d.productId))
-    if (!device) throw new Error('USB device not found')
-
-    await session.defaultSession.disconnectUSBDevice(device)
-    await new Promise(r => setTimeout(r, 500))
-    await session.defaultSession.connectUSBDevice(device)
-    mainWindow.webContents.send('usb-connect', device)
-    console.log('[USB] Dongle hard-restarted')
-    return true
-  } catch (err) {
-    console.error('[USB] Dongle restart failed:', err)
-    return false
-  }
-}
 
 // App lifecycle
 app.whenReady().then(() => {
@@ -234,27 +155,8 @@ app.whenReady().then(() => {
 
   // IPC handlers
   ipcMain.handle('usb-force-reset', () => forceUsbReset())
-  ipcMain.handle('getSettings', handleSettingsReq)
-  ipcMain.handle('save-settings', (_, settings) => saveSettings(settings))
-  ipcMain.handle('restart-dongle', handleRestartDongle)
-  ipcMain.handle('quit', quit)
-  ipcMain.handle('usb-restart', async (_, deviceId: string) => {
-    try {
-      const device = devices.find(d => d.deviceId === deviceId)
-      if (!device) throw new Error('USB device not found')
-  
-      await session.defaultSession.disconnectUSBDevice(device)
-      await new Promise(r => setTimeout(r, 500))
-      await session.defaultSession.connectUSBDevice(device)
-      mainWindow.webContents.send('usb-connect', device)
-      return true
-    } catch (err) {
-      console.error('[USB] Dongle restart failed:', err)
-      return false
-    }
-  })
+  ipcMain.handle('quit', () => app.quit())
 
-  setupUsbHandlers()
   createWindow()
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })
 })
