@@ -49,7 +49,7 @@ export default function Nav({ settings }: NavProps) {
   }
 
   const quit = () => {
-    window.electron.api.quit().catch((err: any) => console.error('Quit failed:', err))
+    window.carplay.quit().catch((err: any) => console.error('Quit failed:', err))
   }
 
   return (

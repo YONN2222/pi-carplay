@@ -1,5 +1,4 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import { electronAPI } from '@electron-toolkit/preload'
 import { ExtraConfig } from '../main/Globals'
 
 type ApiCallback<T = any> = (event: Electron.IpcRendererEvent, ...args: T[]) => void
@@ -18,22 +17,8 @@ const api = {
 
 if (process.contextIsolated) {
   try {
-    contextBridge.exposeInMainWorld('electron', {
-      ...electronAPI,
-      api: {
-        quit: api.quit,
-        settings: {
-          get: api.getSettings,
-          save: api.saveSettings,
-          onUpdate: api.onSettingsUpdate,
-        },
-        usb: {
-          forceReset: api.forceReset,
-        },
-      },
-    })
-
     contextBridge.exposeInMainWorld('carplay', {
+      quit: api.quit,
       usb: {
         forceReset: api.forceReset,
       },
@@ -63,6 +48,7 @@ if (process.contextIsolated) {
   }
 
   window.carplay = {
+    quit: api.quit,   
     usb: {
       forceReset: api.forceReset,
     },
@@ -90,6 +76,7 @@ declare global {
       }
     }
     carplay: {
+      quit: () => Promise<void> 
       usb: {
         forceReset: () => Promise<boolean>
       }
