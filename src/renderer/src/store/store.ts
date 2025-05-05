@@ -2,9 +2,19 @@ import { create } from 'zustand'
 import { ExtraConfig } from '../../../main/Globals'
 import { io } from 'socket.io-client'
 
-// Socket.IO Setup
 const URL = 'http://localhost:4000'
-const socket = io(URL)
+
+// Socket.IO Setup
+const socket = io(URL, {
+  transports: ['websocket'],
+  reconnection: true,
+  reconnectionAttempts: 5,        
+  reconnectionDelay: 2000
+})
+
+socket.on('connect_error', (err) => {
+  console.warn('Socket.IO connect_error:', err.message)
+})
 
 // Carplay Store
 export interface CarplayStore {
