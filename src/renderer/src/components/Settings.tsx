@@ -1,5 +1,5 @@
-import { ExtraConfig } from "../../../main/Globals";
-import React, { useEffect, useState } from "react";
+import { ExtraConfig } from "../../../main/Globals"
+import React, { useEffect, useState } from "react"
 import {
   Box,
   FormControlLabel,
@@ -16,11 +16,11 @@ import {
   Slide,
   Stack,
   Grid,
-} from '@mui/material';
-import { useTheme } from '@mui/material/styles';
-import { TransitionProps } from '@mui/material/transitions/transition';
-import { KeyBindings } from "./KeyBindings";
-import { useCarplayStore } from "../store/store";
+} from '@mui/material'
+import { useTheme } from '@mui/material/styles'
+import { TransitionProps } from '@mui/material/transitions'
+import { KeyBindings } from "./KeyBindings"
+import { useCarplayStore } from "../store/store"
 
 interface SettingsProps {
   settings: ExtraConfig;
@@ -87,7 +87,7 @@ export default function Settings({ settings }: SettingsProps) {
   }, []);
 
   const renderField = (label: string, key: keyof ExtraConfig) => (
-    <Grid xs={3} key={key}>
+    <Grid size={{ xs: 3 }} key={key}>
       <TextField
         label={label}
         type="number"
@@ -100,7 +100,7 @@ export default function Settings({ settings }: SettingsProps) {
   );
 
   const renderCameras = () => (
-    <Grid xs={6}>
+    <Grid size={{ xs: 6 }}>
       <FormControl fullWidth>
         <FormLabel>Camera</FormLabel>
         <RadioGroup
@@ -121,7 +121,7 @@ export default function Settings({ settings }: SettingsProps) {
   );
 
   const renderMicrophones = () => (
-    <Grid xs={6}>
+    <Grid size={{ xs: 6 }}>
       <FormControl fullWidth>
         <FormLabel>Microphone</FormLabel>
         <RadioGroup
@@ -154,7 +154,7 @@ export default function Settings({ settings }: SettingsProps) {
           {renderField('MEDIA DELAY', 'mediaDelay')}
           {renderField('PHONE WORK MODE', 'phoneWorkMode')}
 
-          <Grid xs={3}>
+          <Grid size={{ xs: 3 }}>
             <Stack direction="column" spacing={1} sx={{ mx: 1 }}>
               <FormControlLabel
                 control={
@@ -177,7 +177,7 @@ export default function Settings({ settings }: SettingsProps) {
             </Stack>
           </Grid>
 
-          <Grid xs={3}>
+          <Grid size={{ xs: 3 }}>
             <FormControl component="fieldset" fullWidth sx={{ mx: 1 }}>
               <FormLabel component="legend">WIFI TYPE</FormLabel>
               <RadioGroup
@@ -191,7 +191,7 @@ export default function Settings({ settings }: SettingsProps) {
             </FormControl>
           </Grid>
 
-          <Grid xs={3}>
+          <Grid size={{ xs: 3 }}>
             <FormControl component="fieldset" fullWidth sx={{ mx: 1 }}>
               <FormLabel component="legend">MIC TYPE</FormLabel>
               <RadioGroup
@@ -208,7 +208,7 @@ export default function Settings({ settings }: SettingsProps) {
           {cameras.length > 0 && renderCameras()}
           {microphones.length > 0 && renderMicrophones()}
 
-          <Grid xs={12}>
+          <Grid size={{ xs: 12 }}>
             <Box display="flex" justifyContent="center" sx={{ mt: 2 }}>
               <Button variant="contained" onClick={handleSave}>
                 SAVE

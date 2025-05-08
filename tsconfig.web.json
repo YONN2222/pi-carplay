@@ -11,6 +11,7 @@
     "jsx": "react-jsx",
     "target": "es2022",
     "lib": ["dom", "dom.iterable", "esnext", "WebWorker"],
+    "types": ["@webgpu/types"],
     "allowJs": true,
     "skipLibCheck": true,
     "esModuleInterop": true,

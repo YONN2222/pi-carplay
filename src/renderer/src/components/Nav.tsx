@@ -14,6 +14,7 @@ import { ExtraConfig } from '../../../main/Globals'
 
 interface NavProps {
   settings: ExtraConfig | null
+  receivingVideo?: boolean; 
 }
 
 export default function Nav({ settings }: NavProps) {

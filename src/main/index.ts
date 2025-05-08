@@ -1,8 +1,8 @@
 
 import usb from 'usb'
-import { app, shell, BrowserWindow, session, ipcMain, IpcMainEvent, USBDevice } from 'electron'
+import { app, shell, BrowserWindow, session, ipcMain } from 'electron'
 import { join } from 'path'
-import { electronApp, optimizer, is } from '@electron-toolkit/utils'
+import { electronApp, is } from '@electron-toolkit/utils'
 import { DEFAULT_CONFIG } from 'node-carplay/node'
 import { Socket } from './Socket'
 import * as fs from 'fs'
@@ -12,10 +12,9 @@ let mainWindow: BrowserWindow
 const appPath = app.getPath('userData')
 const configPath = `${appPath}/config.json`
 let config: ExtraConfig
-let socket: Socket
+//let socket: Socket
 
 // Default bindings and config
-type Bindings = Record<string, string>
 const DEFAULT_BINDINGS: KeyBindings = {
   left: 'ArrowLeft', right: 'ArrowRight', selectDown: 'Space', back: 'Backspace',
   down: 'ArrowDown', home: 'KeyH', play: 'KeyP', pause: 'KeyO', next: 'KeyM', prev: 'KeyN'
@@ -38,7 +37,7 @@ if (Object.keys(config).sort().join(',') !== Object.keys(EXTRA_CONFIG).sort().jo
   config = { ...EXTRA_CONFIG, ...config }
   fs.writeFileSync(configPath, JSON.stringify(config, null, 2))
 }
-socket = new Socket(config, saveSettings)
+new Socket(config, saveSettings)
 
 // USB reset
 async function forceUsbReset(): Promise<boolean> {
@@ -105,8 +104,8 @@ if (is.dev) {
 }
 
 // Permission handlers
-  ses.setPermissionCheckHandler((wc, perm) => ['usb', 'hid', 'media', 'display-capture'].includes(perm))
-  ses.setPermissionRequestHandler((wc, perm, cb) => cb(['usb', 'hid', 'media', 'display-capture'].includes(perm)))
+  ses.setPermissionCheckHandler((_webContents, permission) => ['usb', 'hid', 'media', 'display-capture'].includes(permission))
+  ses.setPermissionRequestHandler((_webContents, permission, cb) => cb(['usb', 'hid', 'media', 'display-capture'].includes(permission)))
   ses.setDevicePermissionHandler(details => details.device.vendorId === 4884)
   ses.on('select-usb-device', (ev, details, cb) => {
     ev.preventDefault()
@@ -155,7 +154,7 @@ app.whenReady().then(() => {
 
   // IPC handlers
   ipcMain.handle('usb-force-reset', () => forceUsbReset())
-  ipcMain.handle('quit', () => app.quit())
+  ipcMain.handle('quit', () => quit())
 
   createWindow()
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })
@@ -182,4 +181,6 @@ function saveSettings(settings: ExtraConfig) {
 }
 
 // Quit
-function quit() { app.quit() }
+function quit() {
+  app.quit()
+}

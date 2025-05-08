@@ -14,9 +14,9 @@ export default defineConfig({
     publicDir: 'src/renderer/public',
     resolve: {
       alias: {
-        '@renderer': resolve('src/renderer/src'),
-        stream: "stream-browserify",
-        Buffer: "buffer",
+        '@renderer': resolve(__dirname, 'src/renderer/src'),
+        stream: 'stream-browserify',
+        Buffer: 'buffer',
       }
     },
     optimizeDeps: {
@@ -32,8 +32,16 @@ export default defineConfig({
     server: {
       headers: {
         'Cross-Origin-Embedder-Policy': 'require-corp',
-        'Cross-Origin-Opener-Policy':  'same-origin',
+        'Cross-Origin-Opener-Policy': 'same-origin',
         'Cross-Origin-Resource-Policy': 'same-site',
+      }
+    },
+    worker: {
+      format: 'es',
+      rollupOptions: {
+        output: {
+          assetFileNames: 'assets/[name].[hash][extname]',
+        }
       }
     }
   }

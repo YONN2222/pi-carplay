@@ -1,14 +1,11 @@
 import { Typography, Box, Divider, useTheme } from '@mui/material'
 import { useCarplayStore, useStatusStore } from '../store/store'
 import FFTSpectrum from './FFT'
-import { useLocation } from 'react-router-dom'
 
 export default function Info() {
   const theme = useTheme()
-  const location = useLocation()
 
   // Core settings & dongle info
-  const settings         = useCarplayStore(s => s.settings)
   const negotiatedWidth  = useCarplayStore(s => s.negotiatedWidth)
   const negotiatedHeight = useCarplayStore(s => s.negotiatedHeight)
   const serial           = useCarplayStore(s => s.serial)

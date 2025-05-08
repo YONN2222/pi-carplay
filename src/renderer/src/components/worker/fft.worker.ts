@@ -3,7 +3,6 @@ import FFT from 'fft.js';
 // Worker für FFT: init mit Parametern, empfangen von Float32-PCM-Puffern, Ausgabe normierter Bins
 const FLOOR_DB = -80;
 const MIN_FREQ = 20;
-const MAX_FREQ = 20000;
 
 // A-Weighting
 function aWeight(freq: number): number {
@@ -16,13 +15,14 @@ function aWeight(freq: number): number {
   return rb / ra;
 }
 
+
 let fftSize: number;
 let points: number;
 let sampleRate: number;
 let windowFunc: Float32Array;
 let aWeightTable: Float32Array;
 let fftInstance: FFT;
-let fftOutput: Float32Array;
+let fftOutput: number[];
 let ringBuffer = new Float32Array(0);
 
 self.onmessage = (e: MessageEvent) => {
