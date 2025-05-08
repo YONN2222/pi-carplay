@@ -54,7 +54,7 @@ echo "   All runtime dependencies are ready."
 echo "→ Fetching latest pi-carplay release"
 latest_url=$(curl -s https://api.github.com/repos/f-io/pi-carplay/releases/latest \
   | grep "browser_download_url" \
-  | grep ".AppImage" \
+  | grep "arm64.AppImage" \
   | cut -d '"' -f 4)
 
 if [ -z "$latest_url" ]; then
