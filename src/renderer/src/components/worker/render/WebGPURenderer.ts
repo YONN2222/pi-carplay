@@ -1,7 +1,15 @@
 // Based on https://github.com/w3c/webcodecs/blob/main/samples/video-decode-display/renderer_webgpu.js
 // License: https://www.w3.org/copyright/software-license-2023/
 
+/// <reference lib="dom" />
+
 import { FrameRenderer } from './Render.worker'
+
+declare global {
+  interface Navigator {
+    gpu: GPU;
+  }
+}
 
 export class WebGPURenderer implements FrameRenderer {
   #canvas: OffscreenCanvas | null = null
@@ -13,7 +21,7 @@ export class WebGPURenderer implements FrameRenderer {
   #format: GPUTextureFormat | null = null
   #device: GPUDevice | null = null
   #pipeline: GPURenderPipeline | null = null
-  #sampler: GPUSamplerDescriptor | null = null
+  #sampler: GPUSampler | null = null
 
   // Generates two triangles covering the whole canvas.
   static vertexShaderSource = `

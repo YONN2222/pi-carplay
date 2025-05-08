@@ -1,28 +1,23 @@
 import { useEffect, useRef, useState } from 'react'
 import { Box } from '@mui/material'
 import { useCarplayStore } from '../store/store'
-import FftWorker from './worker/fft.worker.ts?worker'
 import { themeColors } from '../themeColors'
-
 
 export interface FFTSpectrumProps {
   data: number[] | Float32Array
 }
 
 // Configuration
-const POINTS = 24            // Number of bars
-const FFT_SIZE = 4096        // FFT window size (power of two)
-const FLOOR_DB = -80
+const POINTS = 24
+const FFT_SIZE = 4096
 const LABEL_FONT_SIZE = 16
 const MARGIN_BOTTOM = 16
-const MIN_FREQ = 20          // 20 Hz
-const MAX_FREQ = 20000       // 20 kHz
+const MIN_FREQ = 20
+const MAX_FREQ = 20000
 const SPECTRUM_WIDTH_RATIO = 0.92
 const TARGET_FPS = 30
 
 export default function FFTSpectrum({ data }: FFTSpectrumProps) {
-
-  // Colors
   const barColor = themeColors.barColor
   const peakColor = themeColors.peakColor
 
@@ -35,17 +30,19 @@ export default function FFTSpectrum({ data }: FFTSpectrumProps) {
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 })
 
   // Worker and buffers
-  const workerRef = useRef<Worker>()
+  const workerRef = useRef<Worker | null>(null)
   const binsRef = useRef<Float32Array>(new Float32Array(POINTS))
   const peaksRef = useRef<number[]>([])
-  // Reset peaks array when POINTS changes
+
   useEffect(() => {
     peaksRef.current = Array(POINTS).fill(0)
-  }, [POINTS])
+  }, [])
 
-  // Initialize worker
   useEffect(() => {
-    const worker = new FftWorker()
+    const worker = new Worker(
+      new URL('./worker/fft.worker.ts', import.meta.url),
+      { type: 'module' }
+    )
     workerRef.current = worker
     worker.postMessage({
       type: 'init',
@@ -63,17 +60,15 @@ export default function FFTSpectrum({ data }: FFTSpectrumProps) {
     return () => worker.terminate()
   }, [sampleRate])
 
-  // Forward PCM data to worker
   useEffect(() => {
     const worker = workerRef.current
     if (!worker || dataRef.current.length === 0) return
     const buf = dataRef.current instanceof Float32Array
       ? dataRef.current
-      : new Float32Array(dataRef.current as number[])
+      : new Float32Array(dataRef.current)
     worker.postMessage({ type: 'pcm', buffer: buf.buffer }, [buf.buffer])
   }, [data])
 
-  // Resize observer
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
@@ -86,7 +81,6 @@ export default function FFTSpectrum({ data }: FFTSpectrumProps) {
     return () => obs.disconnect()
   }, [])
 
-  // Background grid drawing
   useEffect(() => {
     const bg = bgCanvasRef.current
     if (!bg || dimensions.width === 0) return
@@ -98,12 +92,10 @@ export default function FFTSpectrum({ data }: FFTSpectrumProps) {
     bg.width = cw
     bg.height = ch
 
-    // background fill
     ctx.clearRect(0, 0, cw, ch)
     ctx.fillStyle = 'rgba(0,0,0,0.3)'
     ctx.fillRect(xOff, 0, specW, usableH)
 
-    // grid lines
     ctx.strokeStyle = '#555'
     ctx.lineWidth = 0.5
     ;[0.25, 0.5, 0.75].forEach(f => {
@@ -114,7 +106,6 @@ export default function FFTSpectrum({ data }: FFTSpectrumProps) {
       ctx.stroke()
     })
 
-    // frequency labels
     const freqs = [MIN_FREQ, 100, 500, 1000, 5000, 10000, MAX_FREQ]
     ctx.fillStyle = '#aaa'
     ctx.font = `${LABEL_FONT_SIZE}px sans-serif`
@@ -137,7 +128,6 @@ export default function FFTSpectrum({ data }: FFTSpectrumProps) {
     })
   }, [dimensions, sampleRate])
 
-  // Draw loop
   useEffect(() => {
     let rafId: number
     let last = 0
@@ -167,13 +157,10 @@ export default function FFTSpectrum({ data }: FFTSpectrumProps) {
       for (let i = 0; i < POINTS; i++) {
         const h = bins[i] * usableH
         const x = xOff + i * barW
-        // update peak
         peaks[i] = h > peaks[i] ? h : Math.max(peaks[i] - decay, 0)
-        // draw bar with drop shadow filter
         ctx.filter = 'drop-shadow(2px 2px 4px rgba(0,0,0,0.4))'
         ctx.fillStyle = barColor
         ctx.fillRect(x, usableH - h, barW * 0.8, h)
-        // draw peak indicator
         ctx.filter = 'none'
         ctx.fillStyle = peakColor
         ctx.fillRect(x, usableH - peaks[i] - 2, barW * 0.8, 2)

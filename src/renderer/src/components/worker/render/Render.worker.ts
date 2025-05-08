@@ -13,11 +13,7 @@ export interface FrameRenderer {
 // eslint-disable-next-line no-restricted-globals
 const scope = self as unknown as Worker
 
-type HostType = Window & typeof globalThis
-
-export class RenderWorker {
-  constructor(private host: HostType) {}
-
+export class RendererWorker {
   private renderer: FrameRenderer | null = null
   private videoPort: MessagePort | null = null
   private pendingFrame: VideoFrame | null = null
@@ -26,28 +22,24 @@ export class RenderWorker {
   private timestamp = 0
   private fps = 0
 
+  constructor() {}
+
   private onVideoDecoderOutput = (frame: VideoFrame) => {
-    // Update statistics.
     if (this.startTime == null) {
       this.startTime = performance.now()
     } else {
       const elapsed = (performance.now() - this.startTime) / 1000
       this.fps = ++this.frameCount / elapsed
     }
-
-    // Schedule the frame to be rendered.
     this.renderFrame(frame)
   }
 
   private renderFrame = (frame: VideoFrame) => {
     if (!this.pendingFrame) {
-      // Schedule rendering in the next animation frame.
       requestAnimationFrame(this.renderAnimationFrame)
     } else {
-      // Close the current pending frame before replacing it.
       this.pendingFrame.close()
     }
-    // Set or replace the pending frame.
     this.pendingFrame = frame
   }
 
@@ -79,10 +71,9 @@ export class RenderWorker {
         this.renderer = new WebGPURenderer(event.canvas)
         break
     }
+
     this.videoPort = event.videoPort
-    this.videoPort.onmessage = ev => {
-      this.onFrame(ev.data as RenderEvent)
-    }
+    this.videoPort.onmessage = ev => this.onFrame(ev.data as RenderEvent)
 
     if (event.reportFps) {
       setInterval(() => {
@@ -93,32 +84,40 @@ export class RenderWorker {
     }
   }
 
-  onFrame = (event: RenderEvent) => {
+  private onFrame = (event: RenderEvent) => {
+    console.debug('[WORKER] onFrame() called')
+    console.debug('[WORKER] event.frameData', event.frameData)
+    console.debug('[WORKER] event.frameData.slice(0, 16)', Array.from(new Uint8Array(event.frameData.slice(0, 16))))
     const frameData = new Uint8Array(event.frameData)
+    console.debug('[WORKER] Uint8Array frameData.slice(0, 16)', Array.from(frameData.slice(0, 16)))
 
     if (this.decoder.state === 'unconfigured') {
       const decoderConfig = getDecoderConfig(frameData)
+      console.debug('[WORKER] decoderConfig', decoderConfig)
+
       if (decoderConfig) {
         this.decoder.configure(decoderConfig)
-        console.log(decoderConfig)
         self.postMessage({
           type: 'resolution',
           payload: {
             width: decoderConfig.codedWidth,
-            height: decoderConfig.codedHeight
-          }
+            height: decoderConfig.codedHeight,
+          },
         })
+      } else {
+        console.warn('[WORKER] Failed to get decoder config (no SPS?)')
       }
     }
+
     if (this.decoder.state === 'configured') {
       try {
-        this.decoder.decode(
-          new EncodedVideoChunk({
-            type: isKeyFrame(frameData) ? 'key' : 'delta',
-            data: frameData,
-            timestamp: this.timestamp++,
-          }),
-        )
+        const chunk = new EncodedVideoChunk({
+          type: isKeyFrame(frameData) ? 'key' : 'delta',
+          data: frameData,
+          timestamp: this.timestamp++,
+        })
+        console.debug('[WORKER] decode chunk', chunk)
+        this.decoder.decode(chunk)
       } catch (e) {
         console.error(`H264 Render Worker decode error`, e)
       }
@@ -127,7 +126,7 @@ export class RenderWorker {
 }
 
 // eslint-disable-next-line no-restricted-globals
-const worker = new RenderWorker(self)
+const worker = new RendererWorker()
 scope.addEventListener('message', (event: MessageEvent<WorkerEvent>) => {
   if (event.data.type === 'init') {
     worker.init(event.data as InitEvent)

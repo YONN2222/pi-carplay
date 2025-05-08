@@ -50,7 +50,7 @@ export class RawBitstream {
       this.originalByteLength = this.buffer.byteLength
       this.max = 8192 << 3
     } else {
-      this.buffer = new Uint8Array(stream, 0, stream.byteLength)
+      this.buffer = new Uint8Array(stream.buffer, stream.byteOffset, stream.byteLength)
       this.max = this.buffer.byteLength << 3
       this.originalByteLength = stream.byteLength
     }
@@ -65,10 +65,10 @@ export class RawBitstream {
     let n = 16
     let p = this.ptr
     if (n + p > this.remaining) n = this.remaining
-    const bitstrings = []
-    const hexstrings = []
+    const bitstrings: string[] = []
+    const hexstrings: string[] = []
     /* nibble accumulators */
-    const bits = []
+    const bits: number[] = []
     let nibble = 0
     for (let i = 0; i < n; i++) {
       const q = p >> 3
@@ -558,7 +558,7 @@ export class NALUStream {
       throw new Error('NALUStream error: invalid boxSize')
 
     /* don't copy this.buf from input, just project it */
-    this.buf = new Uint8Array(buf, 0, buf.length)
+    this.buf = new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength)
 
     if (!this.type || !this.boxSize) {
       const { type, boxSize } = this.getType(4)
@@ -617,7 +617,7 @@ export class NALUStream {
   static array2hex(array: Uint8Array) {
     // buffer is an ArrayBuffer
     return Array.prototype.map
-      .call(new Uint8Array(array, 0, array.byteLength), x =>
+      .call(new Uint8Array(array.buffer, array.byteOffset, array.byteLength), x =>
         ('00' + x.toString(16)).slice(-2),
       )
       .join(' ')
@@ -1055,7 +1055,7 @@ export class SPS {
             const sizeOfScalingList = i < 6 ? 16 : 64
             let nextScale = 8
             let lastScale = 8
-            const delta_scale = []
+            const delta_scale: number[] = []
             for (let j = 0; j < sizeOfScalingList; j++) {
               if (nextScale !== 0) {
                 const deltaScale = bitstream.se_v()
@@ -1218,7 +1218,7 @@ export class SPS {
    * @returns {string}
    */
   get MIME() {
-    const f = []
+    const f: string[] = []
     f.push('avc1.')
     f.push(byte2hex(this.profile_idc).toUpperCase())
     f.push(byte2hex(this.profile_compatibility).toUpperCase())

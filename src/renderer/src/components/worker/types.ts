@@ -21,27 +21,46 @@ export type StartPayload = {
   config: Partial<DongleConfig>
 }
 
-export type KeyCommand = 'left' |
-  'right' |
-  'selectDown' |
-  'selectUp' |
-  'back' |
-  'down' |
-  'home' |
-  'play' |
-  'pause' |
-  'next' |
-  'prev'
+export type ValidCommand =
+  | 'left' | 'right' | 'next' | 'invalid' | 'pause' | 'play'
+  | 'selectDown' | 'back' | 'down' | 'home' | 'prev' | 'up'
+  | 'selectUp' | 'frame' | 'mic' | 'deviceFound'
+  | 'startRecordAudio' | 'stopRecordAudio'
+  | 'requestHostUI' | 'wifiPair'
+
+export function isValidCommand(cmd: string): cmd is ValidCommand {
+  return [
+    'left', 'right', 'next', 'invalid', 'pause', 'play',
+    'selectDown', 'back', 'down', 'home', 'prev', 'up',
+    'selectUp', 'frame', 'mic', 'deviceFound',
+    'startRecordAudio', 'stopRecordAudio',
+    'requestHostUI', 'wifiPair'
+  ].includes(cmd)
+}
+
+export type KeyCommand =
+  | 'left'
+  | 'right'
+  | 'selectDown'
+  | 'selectUp'
+  | 'back'
+  | 'down'
+  | 'home'
+  | 'play'
+  | 'pause'
+  | 'next'
+  | 'prev'
 
 export type Command =
   | { type: 'stop' }
   | { type: 'start'; payload: StartPayload }
   | { type: 'touch'; payload: { x: number; y: number; action: TouchAction } }
   | { type: 'initialise'; payload: InitialisePayload }
+  | { type: 'audioPlayer'; payload: AudioPlayerPayload }  // neu: AudioPlayer unterstützen
   | { type: 'audioBuffer'; payload: AudioPlayerPayload }
   | { type: 'microphoneInput'; payload: Int16Array }
-  | { type: 'frame'}
-  | { type: 'keyCommand', command: KeyCommand}
+  | { type: 'frame' }
+  | { type: 'keyCommand'; command: KeyCommand }
 
 export interface CarPlayWorker
   extends Omit<Worker, 'postMessage' | 'onmessage'> {

@@ -1,6 +1,7 @@
 import { ExtraConfig } from './Globals'
 import { Server } from 'socket.io'
 import { EventEmitter } from 'events'
+import type { Stream } from 'stream'
 import http from 'http'
 
 export enum MessageNames {

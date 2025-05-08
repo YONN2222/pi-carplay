@@ -1,5 +1,6 @@
 import { ExtraConfig } from "../../../main/Globals";
 import { useEffect, useState } from "react";
+import Grid from '@mui/material/Grid'
 import {
   Box,
   Button,
@@ -7,7 +8,6 @@ import {
   Paper,
   styled,
   Typography,
-  Grid,
 } from "@mui/material";
 
 interface KeyBindingsProps {
@@ -39,13 +39,18 @@ export function KeyBindings({ settings, updateKey }: KeyBindingsProps) {
   const [keyToBind, setKeyToBind] = useState<string>('');
   const [openWaiting, setOpenWaiting] = useState<boolean>(false);
 
-  useEffect(() => {
-    if (openWaiting) {
-      const handler = (e: KeyboardEvent) => setKey(e);
-      document.addEventListener('keydown', handler);
-      return () => document.removeEventListener('keydown', handler);
-    }
-  }, [openWaiting]);
+useEffect(() => {
+  if (!openWaiting) {
+    return;
+  }
+    
+  const handler = (e: KeyboardEvent) => setKey(e);
+  document.addEventListener('keydown', handler);
+    return () => {
+      document.removeEventListener('keydown', handler);
+    };
+}, [openWaiting]);
+    
 
   const awaitKeyPress = (keyName: string) => {
     setKeyToBind(keyName);
@@ -64,7 +69,7 @@ export function KeyBindings({ settings, updateKey }: KeyBindingsProps) {
     <>
       <Grid container spacing={2}>
         {Object.entries(settings.bindings).map(([action, code]) => (
-          <Grid item xs={3} key={action}>
+          <Grid size={{ xs: 3 }} key={action}>
             <Item>
               <Typography variant="subtitle2">{action}</Typography>
               <Button variant="outlined" onClick={() => awaitKeyPress(action)}>

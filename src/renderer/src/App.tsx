@@ -8,6 +8,7 @@ import Carplay from './components/Carplay'
 import Camera from './components/Camera'
 import { Box, Modal } from '@mui/material'
 import { useCarplayStore, useStatusStore } from "./store/store";
+import type { KeyCommand } from "./components/worker/types"
 
 const style = {
   position: 'absolute',
@@ -63,7 +64,7 @@ function App() {
         className="App"
       >
         <Nav receivingVideo={receivingVideo} settings={settings}/>
-        {settings ? <Carplay  receivingVideo={receivingVideo} setReceivingVideo={setReceivingVideo} settings={settings} command={keyCommand} commandCounter={commandCounter}/> : null}
+        {settings ? <Carplay  receivingVideo={receivingVideo} setReceivingVideo={setReceivingVideo} settings={settings} command={keyCommand as KeyCommand} commandCounter={commandCounter}/> : null}
         <Routes>
           <Route path={"/"} element={<Home />} />
           <Route path={"/settings"} element={<Settings settings={settings!}/>} />

@@ -7,31 +7,31 @@ import React, {
   useState,
 } from "react"
 import { findDevice, CommandMapping } from "node-carplay/web"
-import { CarPlayWorker } from "./worker/types"
 import useCarplayAudio from "./useCarplayAudio"
+import { CarPlayWorker, KeyCommand } from "./worker/types"
 import { useCarplayTouch } from "./useCarplayTouch"
 import { useLocation, useNavigate } from "react-router-dom"
 import { ExtraConfig } from "../../../main/Globals"
 import { useCarplayStore, useStatusStore } from "../store/store"
 import { InitEvent } from "./worker/render/RenderEvents"
-import FFTSpectrum from "./FFT"
 import { Typography } from "@mui/material"
 
 const videoChannel = new MessageChannel()
 const micChannel = new MessageChannel()
+
 const RETRY_DELAY_MS = 3000
 
 interface CarplayProps {
   receivingVideo: boolean
   setReceivingVideo: (receivingVideo: boolean) => void
   settings: ExtraConfig
-  command: string
+  command: KeyCommand
   commandCounter: number
 }
 
 function useStreamingState() {
-  const isStreaming = useStatusStore(state => state.isStreaming)
-  const setStreaming = useStatusStore(state => state.setStreaming)
+  const isStreaming = useStatusStore((s) => s.isStreaming)
+  const setStreaming = useStatusStore((s) => s.setStreaming)
 
   useEffect(() => {
     console.log("[UI] isStreaming state changed:", isStreaming)
@@ -53,18 +53,17 @@ const Carplay: React.FC<CarplayProps> = ({
   command,
   commandCounter,
 }) => {
-  const isDongleConnected = useStatusStore(s => s.isDongleConnected)
-  const setDongleConnected = useStatusStore(s => s.setDongleConnected)
+  const setDongleConnected = useStatusStore((s) => s.setDongleConnected)
   const { isStreaming, setStreaming } = useStreamingState()
-  const resetInfo = useCarplayStore(s => s.resetInfo)
+  const resetInfo = useCarplayStore((s) => s.resetInfo)
 
   const [deviceFound, setDeviceFound] = useState(false)
   useDeviceState(deviceFound)
 
-  const setDeviceInfo = useCarplayStore(s => s.setDeviceInfo)
-  const setNegotiatedResolution = useCarplayStore(s => s.setNegotiatedResolution)
-  const setAudioInfo = useCarplayStore(s => s.setAudioInfo)
-  const setPcmData = useCarplayStore(s => s.setPcmData)
+  const setDeviceInfo = useCarplayStore((s) => s.setDeviceInfo)
+  const setNegotiatedResolution = useCarplayStore((s) => s.setNegotiatedResolution)
+  const setAudioInfo = useCarplayStore((s) => s.setAudioInfo)
+  const setPcmData = useCarplayStore((s) => s.setPcmData)
 
   const navigate = useNavigate()
   const location = useLocation()
@@ -97,6 +96,12 @@ const Carplay: React.FC<CarplayProps> = ({
     }
   }, [settings])
 
+  useLayoutEffect(() => {
+    if (canvasRef.current) {
+      setCanvasElement(canvasRef.current)
+    }
+  }, [])
+
   const renderWorker = useMemo(() => {
     if (!canvasElement) return
     const worker = new Worker(
@@ -104,18 +109,9 @@ const Carplay: React.FC<CarplayProps> = ({
       { type: "module" }
     )
     const offscreen = canvasElement.transferControlToOffscreen()
-    worker.postMessage(
-      new InitEvent(offscreen, videoChannel.port2),
-      [offscreen, videoChannel.port2]
-    )
+    worker.postMessage(new InitEvent(offscreen, videoChannel.port2), [offscreen, videoChannel.port2])
     return worker
   }, [canvasElement])
-
-  useLayoutEffect(() => {
-    if (canvasRef.current) {
-      setCanvasElement(canvasRef.current)
-    }
-  }, [])
 
   const carplayWorker = useMemo(() => {
     const w = new Worker(
@@ -155,7 +151,7 @@ const Carplay: React.FC<CarplayProps> = ({
         case "unplugged":
           setDongleConnected(false)
           setStreaming(false)
-          resetInfo() 
+          resetInfo()
           hasStartedRef.current = false
           break
         case "requestBuffer":
@@ -167,13 +163,7 @@ const Carplay: React.FC<CarplayProps> = ({
           processAudio(message)
           break
         case "audioInfo":
-          console.log("Received audio info:", payload)
-          setAudioInfo({
-            codec: payload.codec,
-            sampleRate: payload.sampleRate,
-            channels: payload.channels,
-            bitDepth: payload.bitDepth,
-          })
+          setAudioInfo(payload)
           break
         case "pcmData":
           setPcmData(new Float32Array(payload as ArrayBuffer))
@@ -190,7 +180,6 @@ const Carplay: React.FC<CarplayProps> = ({
           break
         case "resolution":
           if (!hasStartedRef.current) {
-            console.log("[MSG] resolution received: setStreaming(true)")
             setNegotiatedResolution(payload.width, payload.height)
             setStreaming(true)
             hasStartedRef.current = true
@@ -198,18 +187,17 @@ const Carplay: React.FC<CarplayProps> = ({
           break
         case "failure":
           if (!retryTimeoutRef.current) {
-            retryTimeoutRef.current = setTimeout(() => window.location.reload(), RETRY_DELAY_MS)
+            retryTimeoutRef.current = setTimeout(
+              () => window.location.reload(),
+              RETRY_DELAY_MS
+            )
           }
           break
       }
     }
-
     carplayWorker.addEventListener("message", handler)
-    return () => {
-      carplayWorker.removeEventListener("message", handler)
-    }
+    return () => carplayWorker.removeEventListener("message", handler)
   }, [
-    carplayWorker,
     clearRetryTimeout,
     getAudioPlayer,
     processAudio,
@@ -222,21 +210,20 @@ const Carplay: React.FC<CarplayProps> = ({
     setPcmData,
     setDongleConnected,
     setStreaming,
+    resetInfo,
   ])
 
   useEffect(() => {
     const elem = mainElem.current
     if (!elem) return
-    const obs = new ResizeObserver(() =>
-      carplayWorker.postMessage({ type: "frame" })
-    )
+    const obs = new ResizeObserver(() => carplayWorker.postMessage({ type: "frame" }))
     obs.observe(elem)
     return () => obs.disconnect()
-  }, [carplayWorker])
+  }, [])
 
   useEffect(() => {
     carplayWorker.postMessage({ type: "keyCommand", command })
-  }, [commandCounter, carplayWorker])
+  }, [commandCounter])
 
   useEffect(() => {
     const onUsbConnect = async () => {
@@ -246,7 +233,6 @@ const Carplay: React.FC<CarplayProps> = ({
         setDeviceFound(true)
         setDongleConnected(true)
         setReceivingVideo(true)
-        console.log("[USB] start after connect: setStreaming(true)")
         carplayWorker.postMessage({ type: "start", payload: { config } })
       }
     }
@@ -260,7 +246,6 @@ const Carplay: React.FC<CarplayProps> = ({
         setDongleConnected(false)
         resetInfo()
         hasStartedRef.current = false
-
         if (canvasRef.current) {
           canvasRef.current.style.width = "0"
           canvasRef.current.style.height = "0"
@@ -268,39 +253,28 @@ const Carplay: React.FC<CarplayProps> = ({
         navigate("/")
       }
     }
-
-    ;(async () => {
-      try {
-        const devices = await navigator.usb.getDevices()
-        const dongle = devices.find(
-          (d) => d.vendorId === 5824 && d.productId === 1155
-        )
-        if (dongle && !hasStartedRef.current) {
-          setDeviceFound(true)
-          setDongleConnected(true)
-          setReceivingVideo(true)
-          console.log("[USB] initial check: setStreaming(true)")
-          carplayWorker.postMessage({ type: "start", payload: { config } })
-        }
-      } catch (e) {
-        console.error("initial USB check error", e)
-      }
-    })()
-
     navigator.usb.addEventListener("connect", onUsbConnect)
     navigator.usb.addEventListener("disconnect", onUsbDisconnect)
-
     return () => {
       navigator.usb.removeEventListener("connect", onUsbConnect)
       navigator.usb.removeEventListener("disconnect", onUsbDisconnect)
     }
-  }, [ carplayWorker, setReceivingVideo, setDongleConnected, setStreaming, config, navigate ])
+  }, [
+    setReceivingVideo,
+    setDongleConnected,
+    setStreaming,
+    config,
+    clearRetryTimeout,
+    navigate,
+    resetInfo,
+  ])
 
   useEffect(() => {
     return () => {
       carplayWorker.terminate()
+      renderWorker?.terminate()
     }
-  }, [carplayWorker])
+  }, [])
 
   const sendTouchEvent = useCarplayTouch(carplayWorker)
   const isLoading = !isStreaming
@@ -348,16 +322,16 @@ const Carplay: React.FC<CarplayProps> = ({
           padding: 0,
           margin: 0,
           display: "flex",
-          visibility: isStreaming ? "visible" : "hidden",
-          zIndex: isStreaming ? 1 : -1,
+          visibility: receivingVideo ? "visible" : "hidden",
+          zIndex: receivingVideo ? 1 : -1,
         }}
       >
         <canvas
           ref={canvasRef}
           id="video"
           style={{
-            width: isStreaming ? "100%" : "0",
-            height: isStreaming ? "100%" : "0",
+            width: receivingVideo ? "100%" : "0",
+            height: receivingVideo ? "100%" : "0",
           }}
         />
       </div>

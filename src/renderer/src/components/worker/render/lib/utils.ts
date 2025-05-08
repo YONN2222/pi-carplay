@@ -1,10 +1,6 @@
-// Based on https://github.com/codewithpassion/foxglove-studio-h264-extension/tree/main
-// MIT License
-import { Bitstream, NALUStream, SPS } from './h264-utils'
+import { Bitstream, NALUStream, SPS, StreamType } from './h264-utils'
 
-type GetNaluResult = { type: NaluTypes; nalu: Uint8Array; rawNalu: Uint8Array }
-
-enum NaluTypes {
+export enum NaluTypes {
   NDR = 1,
   IDR = 5,
   SEI = 6,
@@ -13,19 +9,31 @@ enum NaluTypes {
   AUD = 9,
 }
 
-function getNaluFromStream(
+export interface GetNaluResult {
+  nalu: Uint8Array
+  rawNalu: Uint8Array
+  type: NaluTypes
+}
+
+export function getNaluFromStream(
   buffer: Uint8Array,
   type: NaluTypes,
+  streamType: StreamType = 'annexB'
 ): GetNaluResult | null {
-  const stream = new NALUStream(buffer, { type: 'annexB' })
+  const stream = new NALUStream(buffer, { type: streamType })
 
   for (const nalu of stream.nalus()) {
-    if (nalu?.nalu) {
-      const bitstream = new Bitstream(nalu.nalu)
-      bitstream.seek(3)
-      const nal_unit_type = bitstream.u(5)
-      if (nal_unit_type === type) {
-        return { type: nal_unit_type, ...nalu }
+    if (!nalu?.nalu || nalu.nalu.length < 4) continue
+
+    const bitstream = new Bitstream(nalu.nalu)
+    bitstream.seek(3)
+    const nal_unit_type = bitstream.u(5)
+
+    if (nal_unit_type === type) {
+      return {
+        nalu: nalu.nalu,
+        rawNalu: nalu.rawNalu!,
+        type: nal_unit_type,
       }
     }
   }
@@ -33,24 +41,27 @@ function getNaluFromStream(
   return null
 }
 
-function isKeyFrame(frameData: Uint8Array): boolean {
-  const idr = getNaluFromStream(frameData, NaluTypes.IDR)
-  return Boolean(idr)
-}
-
-function getDecoderConfig(frameData: Uint8Array): VideoDecoderConfig | null {
-  const spsNalu = getNaluFromStream(frameData, NaluTypes.SPS)
-  if (spsNalu) {
-    const sps = new SPS(spsNalu.nalu)
-    const decoderConfig: VideoDecoderConfig = {
-      codec: sps.MIME,
-      codedHeight: sps.picHeight,
-      codedWidth: sps.picWidth,
-      hardwareAcceleration: 'prefer-software',
+export function getDecoderConfig(data: Uint8Array): VideoDecoderConfig | null {
+  for (const type of ['annexB', 'packet'] as StreamType[]) {
+    try {
+      const result = getNaluFromStream(data, NaluTypes.SPS, type)
+      if (result) {
+        const sps = new SPS(result.nalu)
+        return {
+          codec: sps.MIME,
+          codedHeight: sps.picHeight,
+          codedWidth: sps.picWidth,
+          hardwareAcceleration: 'prefer-software',
+        }
+      }
+    } catch (e) {
+      console.warn(`[DecoderConfig] Failed to parse SPS from ${type} stream:`, e)
     }
-    return decoderConfig
   }
+
   return null
 }
 
-export { getDecoderConfig, isKeyFrame }
+export function isKeyFrame(data: Uint8Array): boolean {
+  return !!getNaluFromStream(data, NaluTypes.IDR)
+}
