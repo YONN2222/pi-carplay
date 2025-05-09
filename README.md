@@ -21,6 +21,17 @@ The `setup-pi.sh` script will:
 3. Download the latest AppImage
 4. Create an autostart entry
 
+## 📷 Images  
+<p align="center">
+  <img src="documentation/images/carplay.png"
+       alt="CarPlay"
+       width="45%" />
+  &emsp;&emsp;
+  <img src="documentation/images/info.png"
+       alt="Info"
+       width="45%" />
+</p>
+
 ## 🔗 Links
 
 * **Repository & Issue Tracker:** [f-io/pi-carplay](https://github.com/f-io/pi-carplay)
