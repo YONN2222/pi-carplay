@@ -2,7 +2,6 @@ import { createTheme } from '@mui/material/styles'
 import { themeColors } from './themeColors'
 import { CSSObject } from '@mui/system'
 
-// Global CSS resets and layout styles
 const commonLayout = {
   'html, body, #root': {
     margin: 0,
@@ -19,7 +18,6 @@ const commonLayout = {
   },
 }
 
-// Shared style snippets for Tabs
 const tabRootBase = {
   position: 'sticky',
   top: 0,
@@ -149,8 +147,6 @@ function buildTheme(mode: 'light' | 'dark') {
 export const lightTheme = buildTheme('light')
 export const darkTheme = buildTheme('dark')
 
-// Utility: hide cursor after inactivity
-// Utility: hide cursor after inactivity
 export function initCursorHider(inactivityMs: number = 5000) {
   let timer: ReturnType<typeof setTimeout>
   const setCursor = (value: string) => {

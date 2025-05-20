@@ -6,13 +6,16 @@ type ApiCallback<T = any> = (event: Electron.IpcRendererEvent, ...args: T[]) => 
 const api = {
   quit: () => ipcRenderer.invoke('quit'),
 
-  // Settings
   getSettings: () => ipcRenderer.invoke('getSettings'),
   saveSettings: (settings: ExtraConfig) => ipcRenderer.invoke('save-settings', settings),
   onSettingsUpdate: (callback: ApiCallback<ExtraConfig>) => ipcRenderer.on('settings', callback),
 
-  // USB (forceReset)
   forceReset: () => ipcRenderer.invoke('usb-force-reset'),
+  detectDongle: () => ipcRenderer.invoke('usb-detect-dongle'),
+  getUsbDeviceInfo: () => ipcRenderer.invoke('carplay:usbDevice'),
+  listenForUsbEvents: (callback: ApiCallback<any>) => {
+    ipcRenderer.on('usb-event', callback)
+  },
 }
 
 if (process.contextIsolated) {
@@ -21,6 +24,9 @@ if (process.contextIsolated) {
       quit: api.quit,
       usb: {
         forceReset: api.forceReset,
+        detectDongle: api.detectDongle,
+        getDeviceInfo: api.getUsbDeviceInfo,
+        listenForEvents: api.listenForUsbEvents,
       },
       settings: {
         get: api.getSettings,
@@ -33,24 +39,14 @@ if (process.contextIsolated) {
   }
 } else {
   console.warn('Context isolation is disabled! This is unsafe for production!')
-  window.electron = {
-    api: {
-      quit: api.quit,
-      settings: {
-        get: api.getSettings,
-        save: api.saveSettings,
-        onUpdate: api.onSettingsUpdate,
-      },
-      usb: {
-        forceReset: api.forceReset,
-      },
-    },
-  }
 
   window.carplay = {
-    quit: api.quit,   
+    quit: api.quit,
     usb: {
       forceReset: api.forceReset,
+      detectDongle: api.detectDongle,
+      getDeviceInfo: api.getUsbDeviceInfo,
+      listenForEvents: api.listenForUsbEvents,
     },
     settings: {
       get: api.getSettings,
@@ -62,23 +58,17 @@ if (process.contextIsolated) {
 
 declare global {
   interface Window {
-    electron: {
-      api: {
-        quit: () => Promise<void>
-        settings: {
-          get: () => Promise<ExtraConfig>
-          save: (settings: ExtraConfig) => Promise<void>
-          onUpdate: (callback: ApiCallback<ExtraConfig>) => void
-        }
-        usb: {
-          forceReset: () => Promise<boolean>
-        }
-      }
-    }
     carplay: {
-      quit: () => Promise<void> 
+      quit: () => Promise<void>
       usb: {
         forceReset: () => Promise<boolean>
+        detectDongle: () => Promise<boolean>
+        getDeviceInfo: () => Promise<{
+          device: boolean
+          vendorId: number | null
+          productId: number | null
+        }>
+        listenForEvents: (callback: ApiCallback<any>) => void
       }
       settings: {
         get: () => Promise<ExtraConfig>

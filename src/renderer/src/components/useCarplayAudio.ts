@@ -4,92 +4,117 @@ import {
   AudioData,
   WebMicrophone,
   decodeTypeMap,
-} from 'node-carplay/web'
+} from '@carplay/web'
 import { PcmPlayer } from 'pcm-ringbuf-player'
 import { AudioPlayerKey, CarPlayWorker } from './worker/types'
 import { createAudioPlayerKey } from './worker/utils'
-
-const defaultAudioVolume = 1
-const defaultNavVolume = 0.5
+import { useCarplayStore } from '../store/store'
 
 const useCarplayAudio = (
   worker: CarPlayWorker,
-  microphonePort: MessagePort,
+  microphonePort: MessagePort
 ) => {
   const [mic, setMic] = useState<WebMicrophone | null>(null)
   const [audioPlayers] = useState(new Map<AudioPlayerKey, PcmPlayer>())
+
+  const audioVolume = useCarplayStore(s => s.settings?.audioVolume ?? 1.0)
+  const navVolume = useCarplayStore(s => s.settings?.navVolume ?? 0.5)
+
+  useEffect(() => {
+    audioPlayers.forEach((player, key) => {
+      if (key.includes('navi') || key.endsWith('2') || key.endsWith('3')) {
+        player.volume(navVolume)
+      } else {
+        player.volume(audioVolume)
+      }
+    })
+  }, [audioVolume, navVolume, audioPlayers])
+
+  const getCommandName = (cmd?: number) => {
+    if (typeof cmd === 'number' && cmd in AudioCommand) {
+      return AudioCommand[cmd as unknown as keyof typeof AudioCommand]
+    }
+    return undefined
+  }
 
   const getAudioPlayer = useCallback(
     (audio: AudioData): PcmPlayer => {
       const { decodeType, audioType } = audio
       const format = decodeTypeMap[decodeType]
       const audioKey = createAudioPlayerKey(decodeType, audioType)
+
       let player = audioPlayers.get(audioKey)
-      if (player) return player
-      player = new PcmPlayer(format.frequency, format.channel)
-      audioPlayers.set(audioKey, player)
-      player.volume(defaultAudioVolume)
-      player.start()
-      worker.postMessage({
-        type: 'audioPlayer',
-        payload: {
-          sab: player.sab,
-          decodeType,
-          audioType,
-        },
-      })
+      if (!player) {
+        player = new PcmPlayer(format.frequency, format.channel)
+        audioPlayers.set(audioKey, player)
+        player.start()
+        worker.postMessage({
+          type: 'audioPlayer',
+          payload: {
+            sab: player.sab,
+            decodeType,
+            audioType,
+          },
+        })
+      }
+
+      const isNav = audioType === 2 || audioType === 3
+      player.volume(isNav ? navVolume : audioVolume)
+
       return player
     },
-    [audioPlayers, worker],
+    [audioPlayers, worker, audioVolume, navVolume]
   )
 
   const processAudio = useCallback(
     (audio: AudioData) => {
-      if (audio.volumeDuration) {
-        const { volume, volumeDuration } = audio
-        const player = getAudioPlayer(audio)
-        player.volume(volume, volumeDuration)
-      } else if (audio.command) {
-        switch (audio.command) {
-          case AudioCommand.AudioNaviStart:
-            const navPlayer = getAudioPlayer(audio)
-            navPlayer.volume(defaultNavVolume)
-            break
-          case AudioCommand.AudioMediaStart:
-          case AudioCommand.AudioOutputStart:
-            const mediaPlayer = getAudioPlayer(audio)
-            mediaPlayer.volume(defaultAudioVolume)
-            break
-        }
+      const player = getAudioPlayer(audio)
+
+      console.log('[Audio] decodeType:', audio.decodeType, 'audioType:', audio.audioType, 'command:', audio.command, '(', getCommandName(audio.command), ')')
+
+      if (audio.command === AudioCommand.AudioNaviStart) {
+        setTimeout(() => player.volume(navVolume), 10)
+      } else if (audio.volumeDuration && typeof audio.volume === 'number') {
+        player.volume(audio.volume, audio.volumeDuration)
       }
     },
-    [getAudioPlayer],
+    [getAudioPlayer, audioVolume, navVolume]
   )
 
-  // audio init
-  useEffect(() => {
-    const initMic = async () => {
-      try {
-        const mediaStream = await navigator.mediaDevices.getUserMedia({
-          audio: true,
-        })
-        const mic = new WebMicrophone(mediaStream, microphonePort)
-        setMic(mic)
-      } catch (err) {
-        console.error('Failed to init microphone', err)
+  const initMic = useCallback(async () => {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices()
+      const hasInput = devices.some(d => d.kind === 'audioinput')
+      if (!hasInput) {
+        console.warn('No audio input devices available')
+        return
       }
+
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const instance = new WebMicrophone(stream, microphonePort)
+      setMic(instance)
+    } catch (err) {
+      console.error('Failed to init microphone', err)
+      setMic(null)
     }
+  }, [microphonePort])
 
+  useEffect(() => {
     initMic()
-
     return () => {
       audioPlayers.forEach(p => p.stop())
+      mic?.stop()
     }
-  }, [audioPlayers, worker, microphonePort])
+  }, [audioPlayers, initMic])
 
   const startRecording = useCallback(() => {
-    mic?.start()
-  }, [mic])
+    if (!mic) {
+      console.warn('Microphone not available, reinitializing...')
+      initMic()
+    } else {
+      mic.start()
+    }
+  }, [mic, initMic])
 
   const stopRecording = useCallback(() => {
     mic?.stop()

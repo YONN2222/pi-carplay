@@ -3,21 +3,50 @@ import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import react from '@vitejs/plugin-react'
 import { NodeGlobalsPolyfillPlugin } from '@esbuild-plugins/node-globals-polyfill'
 
+const alias = {
+  '@renderer': resolve(__dirname, 'src/renderer/src'),
+  '@carplay/web': resolve(__dirname, 'src/renderer/components/web/CarplayWeb.ts'),
+  '@carplay/messages': resolve(__dirname, 'src/main/carplay/messages'),
+  '@carplay': resolve(__dirname, 'src/main/carplay'),
+  stream: 'stream-browserify',
+  Buffer: 'buffer'
+}
+
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin({ exclude: ['node-carplay'] })]
+    plugins: [externalizeDepsPlugin()],
+    build: {
+      outDir: 'out/main',
+      rollupOptions: {
+        input: {
+          main: resolve(__dirname, 'src/main/index.ts'),
+          usbWorker: resolve(__dirname, 'src/main/usb/USBWorker.ts')
+        },
+        output: {
+          entryFileNames: '[name].js'
+        }
+      }
+    },
+    resolve: {
+      alias
+    }
   },
   preload: {
-    plugins: [externalizeDepsPlugin()]
+    plugins: [externalizeDepsPlugin()],
+    build: {
+      outDir: 'out/preload'
+    },
+    resolve: {
+      alias
+    }
   },
   renderer: {
     publicDir: 'src/renderer/public',
+    build: {
+      outDir: 'out/renderer'
+    },
     resolve: {
-      alias: {
-        '@renderer': resolve(__dirname, 'src/renderer/src'),
-        stream: 'stream-browserify',
-        Buffer: 'buffer',
-      }
+      alias
     },
     optimizeDeps: {
       exclude: ['audio.worklet.js'],
@@ -33,14 +62,14 @@ export default defineConfig({
       headers: {
         'Cross-Origin-Embedder-Policy': 'require-corp',
         'Cross-Origin-Opener-Policy': 'same-origin',
-        'Cross-Origin-Resource-Policy': 'same-site',
+        'Cross-Origin-Resource-Policy': 'same-site'
       }
     },
     worker: {
       format: 'es',
       rollupOptions: {
         output: {
-          assetFileNames: 'assets/[name].[hash][extname]',
+          assetFileNames: 'assets/[name].[hash][extname]'
         }
       }
     }

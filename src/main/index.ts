@@ -1,18 +1,17 @@
-
-import usb from 'usb'
 import { app, shell, BrowserWindow, session, ipcMain } from 'electron'
 import { join } from 'path'
 import { electronApp, is } from '@electron-toolkit/utils'
-import { DEFAULT_CONFIG } from 'node-carplay/node'
+import { DEFAULT_CONFIG } from '@carplay/node'
 import { Socket } from './Socket'
 import * as fs from 'fs'
 import { ExtraConfig, KeyBindings } from './Globals'
+import { USBService } from './usb/USBService'
 
 let mainWindow: BrowserWindow
 const appPath = app.getPath('userData')
 const configPath = `${appPath}/config.json`
 let config: ExtraConfig
-//let socket: Socket
+let socket: Socket
 
 // Default bindings and config
 const DEFAULT_BINDINGS: KeyBindings = {
@@ -25,6 +24,8 @@ const EXTRA_CONFIG: ExtraConfig = {
   camera: '',
   microphone: '',
   nightMode: true,
+  audioVolume: 100,
+  navVolume: 50,
   bindings: DEFAULT_BINDINGS
 }
 
@@ -37,73 +38,53 @@ if (Object.keys(config).sort().join(',') !== Object.keys(EXTRA_CONFIG).sort().jo
   config = { ...EXTRA_CONFIG, ...config }
   fs.writeFileSync(configPath, JSON.stringify(config, null, 2))
 }
-new Socket(config, saveSettings)
-
-// USB reset
-async function forceUsbReset(): Promise<boolean> {
-  const devices = usb.getDeviceList()
-  const dongle = devices.find(d =>
-    d.deviceDescriptor.idVendor  === 0x1314 &&
-    [0x1520, 0x1521].includes(d.deviceDescriptor.idProduct)
-  )
-  if (!dongle) return false
-  try {
-    dongle.open()
-    await new Promise<void>((res, rej) =>
-      dongle.reset(err => err ? rej(err) : res())
-    )
-    dongle.close()
-    return true
-  } catch {
-    return false
-  }
-}
+socket = new Socket(config, saveSettings)
 
 // Create main window
 function createWindow(): void {
   mainWindow = new BrowserWindow({
-  width: config.width,
-  height: config.height,
-  kiosk: false,
-  useContentSize: true,
-  frame: false,
-  autoHideMenuBar: true,
-  backgroundColor: '#000000',
-  webPreferences: {
-    preload: join(__dirname, '../preload/index.js'),
-    sandbox: false,
-    nodeIntegration: true,
-    nodeIntegrationInWorker: true,
-    contextIsolation: true,
-    webSecurity: true,
-    allowRunningInsecureContent: false,
-  },
-});
+    width: config.width,
+    height: config.height,
+    kiosk: false,
+    useContentSize: true,
+    frame: false,
+    autoHideMenuBar: true,
+    backgroundColor: '#000000',
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
+      sandbox: false,
+      nodeIntegration: true,
+      nodeIntegrationInWorker: true,
+      contextIsolation: true,
+      webSecurity: true,
+      allowRunningInsecureContent: false,
+    },
+  });
 
 const ses = mainWindow.webContents.session;
 
-// DEV: COEP/COOP/CRP headers
-if (is.dev) {
-  ses.webRequest.onHeadersReceived(
-    { urls: ['<all_urls>'] },
-    (details, callback) => {
-      if (details.url.includes('/audio.worklet.js')) {
-        callback({
-          responseHeaders: {
-            ...details.responseHeaders,
-            'Cross-Origin-Embedder-Policy': ['require-corp'],
-            'Cross-Origin-Opener-Policy': ['same-origin'],
-            'Cross-Origin-Resource-Policy': ['same-site'],
-          },
-        });
-      } else {
-        callback({ responseHeaders: details.responseHeaders });
+  // DEV: COEP/COOP/CRP headers
+  if (is.dev) {
+    ses.webRequest.onHeadersReceived(
+      { urls: ['<all_urls>'] },
+      (details, callback) => {
+        if (details.url.includes('/audio.worklet.js')) {
+          callback({
+            responseHeaders: {
+              ...details.responseHeaders,
+              'Cross-Origin-Embedder-Policy': ['require-corp'],
+              'Cross-Origin-Opener-Policy': ['same-origin'],
+              'Cross-Origin-Resource-Policy': ['same-site'],
+            },
+          });
+        } else {
+          callback({ responseHeaders: details.responseHeaders });
+        }
       }
-    }
-  );
-}
+    );
+  }
 
-// Permission handlers
+  // Permission handlers
   ses.setPermissionCheckHandler((_webContents, permission) => ['usb', 'hid', 'media', 'display-capture'].includes(permission))
   ses.setPermissionRequestHandler((_webContents, permission, cb) => cb(['usb', 'hid', 'media', 'display-capture'].includes(permission)))
   ses.setDevicePermissionHandler(details => details.device.vendorId === 4884)
@@ -135,10 +116,12 @@ if (is.dev) {
   }
 }
 
-
 // App lifecycle
 app.whenReady().then(() => {
   electronApp.setAppUserModelId('com.electron.carplay')
+
+  // USB worker
+  new USBService()
 
   // Global Security Headers (fallback for all sessions)
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
@@ -153,7 +136,6 @@ app.whenReady().then(() => {
   })
 
   // IPC handlers
-  ipcMain.handle('usb-force-reset', () => forceUsbReset())
   ipcMain.handle('quit', () => quit())
 
   createWindow()
@@ -178,6 +160,8 @@ function saveSettings(settings: ExtraConfig) {
       mediaDelay: +settings.mediaDelay,
     }, null, 2)
   )
+  socket.config = settings
+  socket.sendSettings()
 }
 
 // Quit

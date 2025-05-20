@@ -1,5 +1,5 @@
 import { ExtraConfig } from "../../../main/Globals"
-import React, { useEffect, useState } from "react"
+import React, { useEffect, useMemo, useState } from "react"
 import {
   Box,
   FormControlLabel,
@@ -16,11 +16,13 @@ import {
   Slide,
   Stack,
   Grid,
+  Slider,
 } from '@mui/material'
 import { useTheme } from '@mui/material/styles'
 import { TransitionProps } from '@mui/material/transitions'
 import { KeyBindings } from "./KeyBindings"
 import { useCarplayStore } from "../store/store"
+import debounce from 'lodash.debounce'
 
 interface SettingsProps {
   settings: ExtraConfig;
@@ -34,15 +36,28 @@ const Transition = React.forwardRef(function Transition(
 });
 
 export default function Settings({ settings }: SettingsProps) {
-  const [activeSettings, setActiveSettings] = useState<ExtraConfig>(settings);
+  const [activeSettings, setActiveSettings] = useState<ExtraConfig>({
+    ...settings,
+    audioVolume: settings.audioVolume ?? 1.0,
+    navVolume: settings.navVolume ?? 1.0,
+  });
+
   const [cameras, setCameras] = useState<MediaDeviceInfo[]>([]);
   const [microphones, setMicrophones] = useState<MediaDeviceInfo[]>([]);
   const [openBindings, setOpenBindings] = useState(false);
   const saveSettings = useCarplayStore(s => s.saveSettings);
   const theme = useTheme();
 
+  const debouncedSave = useMemo(() => debounce((newSettings: ExtraConfig) => {
+    saveSettings(newSettings)
+  }, 300), [saveSettings])
+
   const settingsChange = (key: keyof ExtraConfig, value: any) => {
-    setActiveSettings(prev => ({ ...prev, [key]: value }));
+    const updated = { ...activeSettings, [key]: value }
+    setActiveSettings(updated);
+    if (key === 'audioVolume' || key === 'navVolume') {
+      debouncedSave(updated)
+    }
   };
 
   const requiresRestartParams: (keyof ExtraConfig)[] = [
@@ -50,18 +65,18 @@ export default function Settings({ settings }: SettingsProps) {
     'mediaDelay', 'phoneWorkMode', 'wifiType', 'micType',
     'camera', 'microphone'
   ];
-  
+
   const handleSave = async () => {
     const needsRestart = Object.keys(activeSettings).some(
       (key) =>
         requiresRestartParams.includes(key as keyof ExtraConfig) &&
         activeSettings[key] !== settings[key]
     );
-  
+
     await saveSettings(activeSettings);
-  
+
     if (!needsRestart) return;
-  
+
     try {
       console.log('[Settings] Dongle wird hart zurückgesetzt…');
       const ok = await window.carplay.usb.forceReset()
@@ -74,7 +89,7 @@ export default function Settings({ settings }: SettingsProps) {
       console.error('[Settings] USB-Reset Error:', error);
     }
   };
-  
+
   useEffect(() => {
     navigator.mediaDevices?.enumerateDevices?.()
       .then(devices => {
@@ -86,18 +101,40 @@ export default function Settings({ settings }: SettingsProps) {
       });
   }, []);
 
-  const renderField = (label: string, key: keyof ExtraConfig) => (
-    <Grid size={{ xs: 3 }} key={key}>
+  const renderField = (label: string, key: keyof ExtraConfig, min?: number, max?: number) => (
+    <Grid size={{ xs: 3 }} key={String(key)}>
       <TextField
         label={label}
         type="number"
         fullWidth
+        inputProps={{ ...(min !== undefined && { min }), ...(max !== undefined && { max }) }}
         value={activeSettings[key] as number | string}
-        onChange={e => settingsChange(key, e.target.value)}
+        onChange={e => settingsChange(key, Number(e.target.value))}
         sx={{ mx: 1 }}
       />
     </Grid>
   );
+
+  const renderSliderField = (label: string, key: keyof ExtraConfig) => (
+    <Grid size={{ xs: 6 }} key={String(key)}>
+     <FormControl fullWidth sx={{ px: 2 }}>
+        <FormLabel>{label}</FormLabel>
+       <Slider
+         value={(activeSettings[key] as number) * 100}
+         min={0}
+         max={100}
+         step={5}
+         marks
+         valueLabelDisplay="auto"
+         onChange={(_, val) => {
+         if (typeof val === 'number') {
+            settingsChange(key, val / 100)
+         }
+        }}
+      />
+      </FormControl>
+    </Grid>
+  )
 
   const renderCameras = () => (
     <Grid size={{ xs: 6 }}>
@@ -153,6 +190,8 @@ export default function Settings({ settings }: SettingsProps) {
           {renderField('IBOX VERSION', 'iBoxVersion')}
           {renderField('MEDIA DELAY', 'mediaDelay')}
           {renderField('PHONE WORK MODE', 'phoneWorkMode')}
+          {renderSliderField('AUDIO VOLUME', 'audioVolume')}
+          {renderSliderField('NAV VOLUME', 'navVolume')}
 
           <Grid size={{ xs: 3 }}>
             <Stack direction="column" spacing={1} sx={{ mx: 1 }}>
@@ -225,7 +264,7 @@ export default function Settings({ settings }: SettingsProps) {
         open={openBindings}
         TransitionComponent={Transition}
         keepMounted
-        PaperProps={{ sx: { minHeight: '80%', minWidth: '80%' } }}
+        PaperProps={{ sx: { minHeight: '80%', minWidth: '80%' }}}
         onClose={() => setOpenBindings(false)}
       >
         <DialogTitle>Key Bindings</DialogTitle>
