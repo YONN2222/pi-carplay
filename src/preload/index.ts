@@ -3,6 +3,17 @@ import { ExtraConfig } from '../main/Globals'
 
 type ApiCallback<T = any> = (event: Electron.IpcRendererEvent, ...args: T[]) => void
 
+let usbEventQueue: [Electron.IpcRendererEvent, ...any[]][] = []
+let usbEventHandler: ApiCallback<any> | null = null
+
+ipcRenderer.on('usb-event', (event, ...args) => {
+  if (usbEventHandler) {
+    usbEventHandler(event, ...args)
+  } else {
+    usbEventQueue.push([event, ...args])
+  }
+})
+
 const api = {
   quit: () => ipcRenderer.invoke('quit'),
 
@@ -13,8 +24,15 @@ const api = {
   forceReset: () => ipcRenderer.invoke('usb-force-reset'),
   detectDongle: () => ipcRenderer.invoke('usb-detect-dongle'),
   getUsbDeviceInfo: () => ipcRenderer.invoke('carplay:usbDevice'),
+  getLastEvent: (): Promise<{ type: 'plugged' | 'unplugged'; device: any } | null> =>
+    ipcRenderer.invoke('usb-last-event'),
+
   listenForUsbEvents: (callback: ApiCallback<any>) => {
-    ipcRenderer.on('usb-event', callback)
+    usbEventHandler = callback
+    for (const [event, ...args] of usbEventQueue) {
+      callback(event, ...args)
+    }
+    usbEventQueue = []
   },
 }
 
@@ -26,6 +44,7 @@ if (process.contextIsolated) {
         forceReset: api.forceReset,
         detectDongle: api.detectDongle,
         getDeviceInfo: api.getUsbDeviceInfo,
+        getLastEvent: api.getLastEvent,
         listenForEvents: api.listenForUsbEvents,
       },
       settings: {
@@ -46,6 +65,7 @@ if (process.contextIsolated) {
       forceReset: api.forceReset,
       detectDongle: api.detectDongle,
       getDeviceInfo: api.getUsbDeviceInfo,
+      getLastEvent: api.getLastEvent,
       listenForEvents: api.listenForUsbEvents,
     },
     settings: {
@@ -69,6 +89,7 @@ declare global {
           productId: number | null
         }>
         listenForEvents: (callback: ApiCallback<any>) => void
+        getLastEvent: () => Promise<{ type: 'plugged' | 'unplugged'; device: any } | null>
       }
       settings: {
         get: () => Promise<ExtraConfig>

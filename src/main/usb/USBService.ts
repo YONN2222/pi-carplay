@@ -3,6 +3,8 @@ import usbDetect from 'usb-detection'
 import usb from 'usb'
 
 export class USBService {
+  private lastDongleState: boolean = false
+
   constructor() {
     usbDetect.startMonitoring()
     this.registerIpcHandlers()
@@ -12,6 +14,7 @@ export class USBService {
       const dongle = devices.find(this.isDongle)
       if (dongle) {
         console.log('[USBService] Dongle was already connected on startup')
+        this.lastDongleState = true
         this.notifyDeviceChange(dongle, true)
       }
     })
@@ -20,15 +23,21 @@ export class USBService {
   private listenToUsbEvents() {
     usbDetect.on('add', device => {
       if (this.isDongle(device)) {
-        console.log('[USBService] Dongle connected:', device)
-        this.notifyDeviceChange(device, true)
+        if (!this.lastDongleState) {
+          console.log('[USBService] Dongle connected:', device)
+          this.lastDongleState = true
+          this.notifyDeviceChange(device, true)
+        }
       }
     })
 
     usbDetect.on('remove', device => {
       if (this.isDongle(device)) {
-        console.log('[USBService] Dongle disconnected:', device)
-        this.notifyDeviceChange(device, false)
+        if (this.lastDongleState) {
+          console.log('[USBService] Dongle disconnected:', device)
+          this.lastDongleState = false
+          this.notifyDeviceChange(device, false)
+        }
       }
     })
   }
@@ -68,6 +77,27 @@ export class USBService {
 
     ipcMain.handle('usb-force-reset', async () => {
       return this.forceReset()
+    })
+
+    ipcMain.handle('usb-last-event', async () => {
+      if (this.lastDongleState) {
+        const devices = await usbDetect.find()
+        const dongle = devices.find(this.isDongle)
+        if (dongle) {
+          return {
+            type: 'plugged',
+            device: {
+              vendorId: dongle.vendorId,
+              productId: dongle.productId,
+              deviceName: dongle.deviceName || '',
+            }
+          }
+        }
+      }
+      return {
+        type: 'unplugged',
+        device: null,
+      }
     })
   }
 

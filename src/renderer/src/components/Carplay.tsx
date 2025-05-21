@@ -10,8 +10,7 @@ import { Typography } from '@mui/material'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { CommandMapping } from '../../../main/carplay/messages/common'
 import { ExtraConfig } from '../../../main/Globals'
-import { useCarplayStore, useStatusStore }
-  from '../store/store'
+import { useCarplayStore, useStatusStore } from '../store/store'
 import { InitEvent } from './worker/render/RenderEvents'
 import useCarplayAudio from './useCarplayAudio'
 import { useCarplayTouch } from './useCarplayTouch'
@@ -112,7 +111,7 @@ const Carplay: React.FC<CarplayProps> = ({
   const { processAudio, getAudioPlayer, startRecording, stopRecording } =
     useCarplayAudio(carplayWorker, micChannel.port2)
 
-  
+    
   const sendTouchEvent = useCarplayTouch(carplayWorker)
 
   const clearRetryTimeout = useCallback(() => {
@@ -121,6 +120,25 @@ const Carplay: React.FC<CarplayProps> = ({
       retryTimeoutRef.current = null
     }
   }, [])
+
+  useEffect(() => {
+    if (!carplayWorker) return
+    window.carplay.usb.getLastEvent().then(event => {
+      if (!event) return
+
+      if (event.type === 'plugged') {
+        console.log('[Carplay] Dongle war bereits verbunden – starte direkt.')
+        resetInfo()
+        setDeviceFound(true)
+        setDongleConnected(true)
+        hasStartedRef.current = true
+        const latest = useCarplayStore.getState().settings ?? {}
+        carplayWorker.postMessage({ type: 'start', payload: { config: latest } })
+      } else {
+        console.log('[Carplay] Dongle war beim Start nicht verbunden.')
+      }
+    })
+  }, [carplayWorker, resetInfo, setDeviceFound, setDongleConnected])
 
   useEffect(() => {
     const handler = (ev: MessageEvent<any>) => {
@@ -202,7 +220,7 @@ const Carplay: React.FC<CarplayProps> = ({
         setDongleConnected(true)
         hasStartedRef.current = true
         const latest = useCarplayStore.getState().settings ?? {}
-        carplayWorker.postMessage({ type: 'start', payload: { config } })
+        carplayWorker.postMessage({ type: 'start', payload: { config: latest } })
       }
     }
 
