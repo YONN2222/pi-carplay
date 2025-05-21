@@ -10,7 +10,8 @@ import { Typography } from '@mui/material'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { CommandMapping } from '../../../main/carplay/messages/common'
 import { ExtraConfig } from '../../../main/Globals'
-import { useCarplayStore, useStatusStore } from '../store/store'
+import { useCarplayStore, useStatusStore }
+  from '../store/store'
 import { InitEvent } from './worker/render/RenderEvents'
 import useCarplayAudio from './useCarplayAudio'
 import { useCarplayTouch } from './useCarplayTouch'
@@ -200,6 +201,7 @@ const Carplay: React.FC<CarplayProps> = ({
         setDeviceFound(true)
         setDongleConnected(true)
         hasStartedRef.current = true
+        const latest = useCarplayStore.getState().settings ?? {}
         carplayWorker.postMessage({ type: 'start', payload: { config } })
       }
     }
