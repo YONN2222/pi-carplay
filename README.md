@@ -1,7 +1,9 @@
 # pi‑carplay
 
-**pi‑carplay** is built on top of Rhys Morgan’s awesome [react-carplay](https://github.com/rhysmorgan134/react-carplay) project, tailored specifically for the Raspberry Pi.
-It delivers Apple CarPlay functionality to your Pi with minimal setup.
+pi‑carplay brings Apple CarPlay functionality to the Raspberry Pi.
+While it started as a fork of react-carplay, it has since evolved into a standalone implementation with a different focus.
+
+🎯 Optimized for embedded Raspberry Pi setups and ultra-low-resolution displays
 
 > **Requirements:** A Carlinkit **CPC200-CCPA** (wireless & wired) or **CPC200-CCPW** (wired only) adapter.
 
@@ -38,10 +40,50 @@ The `setup-pi.sh` script will:
        width="45%" />
 </p>
 
+
+## 📦 Build Environment
+
+```bash
+node -v
+v22.15.0
+
+npm -v
+10.9.2
+```
+
+---
+
+### 🧱 System Requirements
+
+Make sure the following packages and tools are installed on your system before building:
+
+- **Python 3.x** (for native module builds via `node-gyp`)
+- **build-essential** (Linux: includes `gcc`, `g++`, `make`, etc.)
+- **libusb-1.0-0-dev** (required for `node-usb`)
+- **libudev-dev** (optional but recommended for USB detection on Linux)
+- **fuse** (required to run AppImages)
+
+---
+
+### 🔨 Clone & Build
+
+```bash
+git clone --branch main --single-branch https://github.com/f-io/pi-carplay.git \
+  && cd pi-carplay \
+  && npm install \
+  && npm run build \
+  && npm run build:armLinux
+```
+
 ## 🔗 Links
 
 * **Repository & Issue Tracker:** [f-io/pi-carplay](https://github.com/f-io/pi-carplay)
-* **Original Project:** [react-carplay by Rhys Morgan](https://github.com/rhysmorgan134/react-carplay)
+* **Inspired by:** [react-carplay](https://github.com/rhysmorgan134/react-carplay)
+
+## ⚠️ Disclaimer
+
+** _Apple and CarPlay are trademarks of Apple Inc. This project is not affiliated with or endorsed by Apple in any way. All trademarks are the property of their respective owners._
+
 
 ## 📝 License
 
