@@ -27,7 +27,6 @@
     "baseUrl": "./src",
     "paths": {
       "@renderer/*": ["renderer/src/*"],
-      "@carplay/web": ["renderer/components/web/CarplayWeb.ts"],
       "@carplay/messages": ["main/carplay/messages/index.ts"]
     }
   }

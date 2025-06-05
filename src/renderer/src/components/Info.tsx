@@ -1,9 +1,13 @@
+import { useEffect } from 'react'
 import { Typography, Box, Divider, useTheme } from '@mui/material'
 import { useCarplayStore, useStatusStore } from '../store/store'
 import FFTSpectrum from './FFT'
 
 export default function Info() {
   const theme = useTheme()
+
+  // Trigger
+  const isDongleConnected = useStatusStore(s => s.isDongleConnected)
 
   // Core settings & dongle info
   const negotiatedWidth  = useCarplayStore(s => s.negotiatedWidth)
@@ -28,6 +32,23 @@ export default function Info() {
   const highlight = (val: any) =>
     val != null ? theme.palette.primary.main : theme.palette.text.primary
 
+  useEffect(() => {
+    if (isDongleConnected) {
+      window.carplay.usb.getDeviceInfo().then(info => {
+       if (info.device) {
+          useCarplayStore.setState({
+            serial: info.serialNumber,
+            manufacturer: info.manufacturerName,
+            product: info.productName,
+            fwVersion: info.fwVersion,
+          })
+        }
+      })
+    } else {
+      useCarplayStore.getState().resetInfo()
+    }
+  }, [isDongleConnected])
+
   return (
     <Box p={2}>
       <Box display="flex" flexWrap="wrap" gap={2}>
@@ -39,25 +60,25 @@ export default function Info() {
           <Typography>
             <strong>Serial:</strong>{' '}
             <Box component="span" color={highlight(serial)}>
-              {serial}
+              {serial || '—'}
             </Box>
           </Typography>
           <Typography>
             <strong>Manufacturer:</strong>{' '}
             <Box component="span" color={highlight(manufacturer)}>
-              {manufacturer}
+              {manufacturer || '—'}
             </Box>
           </Typography>
           <Typography>
             <strong>Product:</strong>{' '}
             <Box component="span" color={highlight(product)}>
-              {product}
+              {product || '—'}
             </Box>
           </Typography>
           <Typography>
             <strong>Firmware:</strong>{' '}
             <Box component="span" color={highlight(fwVersion)}>
-              {fwVersion}
+              {fwVersion || '—'}
             </Box>
           </Typography>
         </Box>
@@ -103,36 +124,44 @@ export default function Info() {
 
         {/* Audio Info + FFT */}
         <Box sx={{ flex: '1 1 100%', display: 'flex', flexWrap: 'nowrap', gap: 2 }}>
-          <Box sx={{ flex: '1 1 40%', minWidth: 240, alignSelf: 'center'}}>
+          <Box sx={{ flex: '1 1 40%', minWidth: 240, alignSelf: 'center' }}>
             <Typography variant="h6" gutterBottom>
               Audio Info
             </Typography>
             <Typography>
               <strong>Codec:</strong>{' '}
               <Box component="span" color={highlight(audioCodec)}>
-                {audioCodec}
+                {audioCodec || '—'}
               </Box>
             </Typography>
             <Typography>
               <strong>Samplerate:</strong>{' '}
               <Box component="span" color={highlight(audioSampleRate)}>
-                {audioSampleRate ? `${audioSampleRate} Hz` : ''}
+                {audioSampleRate ? `${audioSampleRate} Hz` : '—'}
               </Box>
             </Typography>
             <Typography>
               <strong>Channels:</strong>{' '}
               <Box component="span" color={highlight(audioChannels)}>
-                {audioChannels}
+                {audioChannels || '—'}
               </Box>
             </Typography>
             <Typography>
               <strong>Bit depth:</strong>{' '}
               <Box component="span" color={highlight(audioBitDepth)}>
-                {audioBitDepth ? `${audioBitDepth} bit` : ''}
+                {audioBitDepth ? `${audioBitDepth} bit` : '—'}
               </Box>
             </Typography>
           </Box>
-          <Box sx={{ flex: '1 1 60%', minWidth: 240, height: { xs: 150, sm: 200, md: 250 }, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          <Box
+            sx={{
+              flex: '1 1 60%',
+              minWidth: 240,
+              height: { xs: 150, sm: 200, md: 250 },
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
           >
             <FFTSpectrum data={pcmData} />
           </Box>

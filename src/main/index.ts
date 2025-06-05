@@ -1,170 +1,190 @@
-import { app, shell, BrowserWindow, session, ipcMain } from 'electron'
-import { join } from 'path'
-import { electronApp, is } from '@electron-toolkit/utils'
-import { DEFAULT_CONFIG } from '@carplay/node'
-import { Socket } from './Socket'
-import * as fs from 'fs'
-import { ExtraConfig, KeyBindings } from './Globals'
-import { USBService } from './usb/USBService'
+import {
+  app,
+  shell,
+  BrowserWindow,
+  session,
+  ipcMain,
+  protocol
+} from 'electron';
+import { join, extname } from 'path';
+import {
+  existsSync,
+  createReadStream,
+  readFileSync,
+  writeFileSync
+} from 'fs';
+import { electronApp, is } from '@electron-toolkit/utils';
+import { DEFAULT_CONFIG } from '@carplay/node';
 
-let mainWindow: BrowserWindow
-const appPath = app.getPath('userData')
-const configPath = `${appPath}/config.json`
-let config: ExtraConfig
-let socket: Socket
+import { Socket }          from './Socket';
+import { ExtraConfig, KeyBindings } from './Globals';
+import { USBService }      from './usb/USBService';
+import { CarplayService }  from './carplay/CarplayService';
 
-// Default bindings and config
+
+//  MIME-Helper
+const mimeTypeFromExt = (ext: string): string => ({
+  '.html':'text/html','.js':'text/javascript','.css':'text/css',
+  '.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg',
+  '.svg':'image/svg+xml','.json':'application/json',
+  '.wasm':'application/wasm','.map':'application/json'
+}[ext.toLowerCase()] ?? 'application/octet-stream');
+
+
+// Globals
+let mainWindow: BrowserWindow;
+let socket    : Socket;
+let config    : ExtraConfig;
+
+const carplayService = new CarplayService();
+(global as any).carplayService = carplayService;
+
+// Privileged shemes
+protocol.registerSchemesAsPrivileged([{
+  scheme:'app',
+  privileges:{ secure:true, standard:true, corsEnabled:true,
+               supportFetchAPI:true, stream:true }
+}]);
+
+// Config
+const appPath    = app.getPath('userData');
+const configPath = join(appPath, 'config.json');
+
 const DEFAULT_BINDINGS: KeyBindings = {
-  left: 'ArrowLeft', right: 'ArrowRight', selectDown: 'Space', back: 'Backspace',
-  down: 'ArrowDown', home: 'KeyH', play: 'KeyP', pause: 'KeyO', next: 'KeyM', prev: 'KeyN'
-}
+  left:'ArrowLeft', right:'ArrowRight', selectDown:'Space', back:'Backspace',
+  down:'ArrowDown', home:'KeyH', play:'KeyP', pause:'KeyO', next:'KeyM', prev:'KeyN'
+};
+
 const EXTRA_CONFIG: ExtraConfig = {
   ...DEFAULT_CONFIG,
-  kiosk: true,
-  camera: '',
-  microphone: '',
-  nightMode: true,
-  audioVolume: 100,
-  navVolume: 50,
-  bindings: DEFAULT_BINDINGS
-}
+  kiosk:true, camera:'', microphone:'', nightMode:true,
+  audioVolume:100, navVolume:50, bindings:DEFAULT_BINDINGS
+};
 
-// Initialize config
-if (!fs.existsSync(configPath)) {
-  fs.writeFileSync(configPath, JSON.stringify(EXTRA_CONFIG, null, 2))
-}
-config = JSON.parse(fs.readFileSync(configPath, 'utf8'))
+if (!existsSync(configPath))
+  writeFileSync(configPath, JSON.stringify(EXTRA_CONFIG, null, 2));
+
+config = JSON.parse(readFileSync(configPath,'utf8'));
 if (Object.keys(config).sort().join(',') !== Object.keys(EXTRA_CONFIG).sort().join(',')) {
-  config = { ...EXTRA_CONFIG, ...config }
-  fs.writeFileSync(configPath, JSON.stringify(config, null, 2))
+  config = { ...EXTRA_CONFIG, ...config };
+  writeFileSync(configPath, JSON.stringify(config, null, 2));
 }
-socket = new Socket(config, saveSettings)
 
-// Create main window
+// Window
 function createWindow(): void {
   mainWindow = new BrowserWindow({
-    width: config.width,
-    height: config.height,
-    kiosk: false,
-    useContentSize: true,
-    frame: false,
-    autoHideMenuBar: true,
-    backgroundColor: '#000000',
-    webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
-      sandbox: false,
-      nodeIntegration: true,
-      nodeIntegrationInWorker: true,
-      contextIsolation: true,
-      webSecurity: true,
-      allowRunningInsecureContent: false,
-    },
+    width:config.width, height:config.height, frame:false,
+    useContentSize:true, kiosk:false, autoHideMenuBar:true,
+    backgroundColor:'#000000',
+    webPreferences:{
+      preload:join(__dirname,'../preload/index.js'),
+      sandbox:false, nodeIntegration:false, contextIsolation:true,
+      webSecurity:true, allowRunningInsecureContent:false
+    }
   });
 
-const ses = mainWindow.webContents.session;
+  // Permissions
+  const ses = mainWindow.webContents.session;
+  ses.setPermissionCheckHandler((_w,p)=>(
+    ['usb','hid','media','display-capture'].includes(p)
+  ));
+  ses.setPermissionRequestHandler((_w,p,cb)=>
+    cb(['usb','hid','media','display-capture'].includes(p))
+  );
+  ses.setUSBProtectedClassesHandler(({protectedClasses})=>
+    protectedClasses.filter(c=>['audio','video','vendor-specific'].includes(c))
+  );
 
-  // DEV: COEP/COOP/CRP headers
-  if (is.dev) {
-    ses.webRequest.onHeadersReceived(
-      { urls: ['<all_urls>'] },
-      (details, callback) => {
-        if (details.url.includes('/audio.worklet.js')) {
-          callback({
-            responseHeaders: {
-              ...details.responseHeaders,
-              'Cross-Origin-Embedder-Policy': ['require-corp'],
-              'Cross-Origin-Opener-Policy': ['same-origin'],
-              'Cross-Origin-Resource-Policy': ['same-site'],
-            },
-          });
-        } else {
-          callback({ responseHeaders: details.responseHeaders });
-        }
-      }
-    );
-  }
+  // COI-Header
+  session.defaultSession.webRequest.onHeadersReceived(
+    { urls:['*://*/*','file://*/*'] },
+    (d,cb)=>cb({responseHeaders:{
+      ...d.responseHeaders,
+      'Cross-Origin-Opener-Policy':['same-origin'],
+      'Cross-Origin-Embedder-Policy':['require-corp'],
+      'Cross-Origin-Resource-Policy':['same-site']
+    }})
+  );
 
-  // Permission handlers
-  ses.setPermissionCheckHandler((_webContents, permission) => ['usb', 'hid', 'media', 'display-capture'].includes(permission))
-  ses.setPermissionRequestHandler((_webContents, permission, cb) => cb(['usb', 'hid', 'media', 'display-capture'].includes(permission)))
-  ses.setDevicePermissionHandler(details => details.device.vendorId === 4884)
-  ses.on('select-usb-device', (ev, details, cb) => {
-    ev.preventDefault()
-    const sel = details.deviceList.find(d => d.vendorId === 4884 && [5408, 5409].includes(d.productId))
-    cb(sel?.deviceId)
-  })
-  ses.setUSBProtectedClassesHandler(({ protectedClasses }) =>
-    protectedClasses.filter(c => ['audio', 'video', 'vendor-specific'].includes(c))
-  )
+  mainWindow.once('ready-to-show',()=>{
+    mainWindow.show();
+    if (config.kiosk) mainWindow.setKiosk(true);
+    if (is.dev) mainWindow.webContents.openDevTools({mode:'detach'});
+    carplayService.attachRenderer(mainWindow.webContents);
+  });
 
-  mainWindow.once('ready-to-show', () => {
-    mainWindow.show()
-    if (config?.kiosk) mainWindow.setKiosk(true)
-    if (is.dev) mainWindow.webContents.openDevTools({ mode: 'detach' })
-  })
+  mainWindow.webContents.setWindowOpenHandler(({url})=>{
+    shell.openExternal(url); return{action:'deny'};
+  });
 
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url)
-    return { action: 'deny' }
-  })
-
-  // Load renderer
-  if (is.dev && process.env.ELECTRON_RENDERER_URL) {
-    mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL)
-  } else {
-    mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
-  }
+  if (is.dev && process.env.ELECTRON_RENDERER_URL)
+    mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL);
+  else
+    mainWindow.loadURL('app://index.html');
 }
 
-// App lifecycle
-app.whenReady().then(() => {
-  electronApp.setAppUserModelId('com.electron.carplay')
+// App-Lifecycle
+app.whenReady().then(()=>{
+  electronApp.setAppUserModelId('com.electron.carplay');
 
-  // USB worker
-  new USBService()
+  // app:// → out/renderer/**
+  protocol.registerStreamProtocol('app',(request,callback)=>{
+    try{
+      const u   = new URL(request.url);
+      let path  = decodeURIComponent(u.pathname);
+      if (path==='/'||path==='') path='/index.html';
 
-  // Global Security Headers (fallback for all sessions)
-  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
-    callback({
-      responseHeaders: {
-        ...details.responseHeaders,
-        'Cross-Origin-Opener-Policy':   ['same-origin'],
-        'Cross-Origin-Embedder-Policy': ['require-corp'],
-        'Cross-Origin-Resource-Policy': ['same-site'],
-      }
-    })
-  })
+      const file= join(__dirname,'../renderer',path);
+      if(!existsSync(file)) return callback({statusCode:404});
 
-  // IPC handlers
-  ipcMain.handle('quit', () => quit())
+      callback({
+        statusCode:200,
+        headers:{
+          'Content-Type':mimeTypeFromExt(extname(file)),
+          'Cross-Origin-Opener-Policy':'same-origin',
+          'Cross-Origin-Embedder-Policy':'require-corp',
+          'Cross-Origin-Resource-Policy':'same-site'
+        },
+        data:createReadStream(file)
+      });
+    }catch(e){
+      console.error('[app-protocol] error',e);
+      callback({statusCode:500});
+    }
+  });
 
-  createWindow()
-  app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })
-})
+  new USBService(carplayService);
+  socket = new Socket(config, saveSettings);
 
-app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit() })
+  ipcMain.handle('quit', () => app.quit());
+  createWindow();
 
-// Save settings
-function saveSettings(settings: ExtraConfig) {
-  fs.writeFileSync(configPath,
+  app.on('activate',()=>{
+    if (BrowserWindow.getAllWindows().length===0) createWindow();
+  });
+});
+
+app.on('window-all-closed',()=>{
+  if (process.platform!=='darwin') app.quit();
+});
+
+// Settings
+function saveSettings(settings: ExtraConfig){
+  writeFileSync(
+    configPath,
     JSON.stringify({
       ...settings,
-      width: +settings.width,
-      height: +settings.height,
-      fps: +settings.fps,
-      dpi: +settings.dpi,
-      format: +settings.format,
-      iBoxVersion: +settings.iBoxVersion,
-      phoneWorkMode: +settings.phoneWorkMode,
-      packetMax: +settings.packetMax,
-      mediaDelay: +settings.mediaDelay,
-    }, null, 2)
-  )
-  socket.config = settings
-  socket.sendSettings()
-}
-
-// Quit
-function quit() {
-  app.quit()
+      width:+settings.width,
+      height:+settings.height,
+      fps:+settings.fps,
+      dpi:+settings.dpi,
+      format:+settings.format,
+      iBoxVersion:+settings.iBoxVersion,
+      phoneWorkMode:+settings.phoneWorkMode,
+      packetMax:+settings.packetMax,
+      mediaDelay:+settings.mediaDelay
+    },null,2)
+  );
+  socket.config = settings;
+  socket.sendSettings();
 }

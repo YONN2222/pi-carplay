@@ -52,7 +52,7 @@ export type DongleConfig = {
 export const DEFAULT_CONFIG: DongleConfig = {
   width: 800,
   height: 480,
-  fps: 30,
+  fps: 60,
   dpi: 140,
   format: 5,
   iBoxVersion: 2,
@@ -61,7 +61,7 @@ export const DEFAULT_CONFIG: DongleConfig = {
   boxName: 'nodePlay',
   nightMode: true,
   hand: HandDriveType.LHD,
-  mediaDelay: 300,
+  mediaDelay: 500,
   audioTransferMode: false,
   wifiType: '5ghz',
   micType: 'os',

@@ -1,22 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
-import {
-  AudioCommand,
-  AudioData,
-  WebMicrophone,
-  decodeTypeMap,
-} from '@carplay/web'
+import { AudioCommand, AudioData, decodeTypeMap } from '../../../main/carplay/messages'
 import { PcmPlayer } from 'pcm-ringbuf-player'
 import { AudioPlayerKey, CarPlayWorker } from './worker/types'
 import { createAudioPlayerKey } from './worker/utils'
 import { useCarplayStore } from '../store/store'
 
-const useCarplayAudio = (
-  worker: CarPlayWorker,
-  microphonePort: MessagePort
-) => {
-  const [mic, setMic] = useState<WebMicrophone | null>(null)
+const useCarplayAudio = (worker: CarPlayWorker) => {
   const [audioPlayers] = useState(new Map<AudioPlayerKey, PcmPlayer>())
-
   const audioVolume = useCarplayStore(s => s.settings?.audioVolume ?? 1.0)
   const navVolume = useCarplayStore(s => s.settings?.navVolume ?? 0.5)
 
@@ -69,7 +59,6 @@ const useCarplayAudio = (
   const processAudio = useCallback(
     (audio: AudioData) => {
       const player = getAudioPlayer(audio)
-
       console.log('[Audio] decodeType:', audio.decodeType, 'audioType:', audio.audioType, 'command:', audio.command, '(', getCommandName(audio.command), ')')
 
       if (audio.command === AudioCommand.AudioNaviStart) {
@@ -78,49 +67,16 @@ const useCarplayAudio = (
         player.volume(audio.volume, audio.volumeDuration)
       }
     },
-    [getAudioPlayer, audioVolume, navVolume]
+    [getAudioPlayer, navVolume]
   )
 
-  const initMic = useCallback(async () => {
-    try {
-      const devices = await navigator.mediaDevices.enumerateDevices()
-      const hasInput = devices.some(d => d.kind === 'audioinput')
-      if (!hasInput) {
-        console.warn('No audio input devices available')
-        return
-      }
-
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const instance = new WebMicrophone(stream, microphonePort)
-      setMic(instance)
-    } catch (err) {
-      console.error('Failed to init microphone', err)
-      setMic(null)
-    }
-  }, [microphonePort])
-
   useEffect(() => {
-    initMic()
     return () => {
       audioPlayers.forEach(p => p.stop())
-      mic?.stop()
     }
-  }, [audioPlayers, initMic])
+  }, [audioPlayers])
 
-  const startRecording = useCallback(() => {
-    if (!mic) {
-      console.warn('Microphone not available, reinitializing...')
-      initMic()
-    } else {
-      mic.start()
-    }
-  }, [mic, initMic])
-
-  const stopRecording = useCallback(() => {
-    mic?.stop()
-  }, [mic])
-
-  return { processAudio, getAudioPlayer, startRecording, stopRecording }
+  return { processAudio, getAudioPlayer }
 }
 
 export default useCarplayAudio

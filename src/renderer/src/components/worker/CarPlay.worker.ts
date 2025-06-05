@@ -1,149 +1,119 @@
-import CarplayWeb, {
-  CarplayMessage,
-  DongleConfig,
-  SendAudio,
-  SendCommand,
-  SendTouch,
-  findDevice,
-  decodeTypeMap,
-} from '@carplay/web'
+import { decodeTypeMap } from '../../../../main/carplay/messages'
 import { AudioPlayerKey } from './types'
-import type { KeyCommand } from './types'
-import { RenderEvent } from './render/RenderEvents'
 import { RingBuffer } from 'ringbuf.js'
 import { createAudioPlayerKey } from './utils'
 
-let carplayWeb: CarplayWeb | null = null
-let videoPort: MessagePort | null = null
-let microphonePort: MessagePort | null = null
-let config: Partial<DongleConfig>
-let audioInfoSent = false
-let starting = false
-let coldstartHandled = false
-let firstFrameLogged = false
-let firstResolutionLogged = false
-let coldstartTimerStarted = false
-
-const audioBuffers: Record<AudioPlayerKey, RingBuffer<Int16Array>> = {}
+const audioBuffers: Record<AudioPlayerKey, RingBuffer> = {}
 const pendingAudio: Record<AudioPlayerKey, Int16Array[]> = {}
 
-function handleMessage(message: CarplayMessage) {
-  const { type, message: payload } = message
+let microphonePort: MessagePort | undefined
 
-  if (type === 'video' && videoPort) {
-    if (!firstFrameLogged) {
-      try {
-        console.timeLog('coldstart', '[Worker] First video frame')
-      } catch {}
-      firstFrameLogged = true
-    }
+let isNewStream = true
+let lastPcmTimestamp = Date.now()
+const PCM_TIMEOUT = 2000
 
-    if (payload.width && payload.height && !firstResolutionLogged) {
-      firstResolutionLogged = true
-      console.log('[Worker] Sending resolution from video payload:', payload.width, payload.height)
-    }
+function processAudioData(audioData: any) {
+  const { decodeType, audioType } = audioData;
+  const meta = decodeTypeMap[decodeType];
+  let int16: Int16Array;
 
-    if (payload.width && payload.height) {
-      self.postMessage({
-        type: 'resolution',
-        payload: { width: payload.width, height: payload.height },
-      })
-    } else {
-      console.warn('[Worker] Video payload does not contain resolution info')
-    }
+  if (audioData.data instanceof Int16Array) {
+    int16 = audioData.data.byteOffset % 2 === 0 && audioData.data.buffer.byteLength >= audioData.data.byteOffset + audioData.data.byteLength
+      ? audioData.data
+      : new Int16Array(audioData.data);
+  } else if (audioData.buffer instanceof ArrayBuffer) {
+    int16 = new Int16Array(audioData.buffer);
+  } else {
+    console.error('[CARPLAY.WORKER] PCM - Cannot interpret PCM data:', audioData);
+    return;
+  }
 
-    const view = payload.data instanceof Buffer
-      ? new Uint8Array(payload.data)
-      : new Uint8Array(payload.data.buffer as ArrayBuffer, payload.data.byteOffset, payload.data.byteLength)
-    const dataBuffer = view.buffer
+  const currentTime = Date.now();
+  if (currentTime - lastPcmTimestamp > PCM_TIMEOUT) {
+    isNewStream = true; 
+  }
 
-    videoPort.postMessage(new RenderEvent(dataBuffer), [dataBuffer])
+  if (isNewStream && meta) {
+    isNewStream = false;
 
-  } else if (type === 'audio' && payload.data) {
-    const { decodeType, audioType } = payload
-    const key = createAudioPlayerKey(decodeType, audioType)
+    const newAudioInfo = {
+      codec: meta.format ?? meta.mimeType ?? String(decodeType),
+      sampleRate: meta.frequency,
+      channels: meta.channel,
+      bitDepth: meta.bitDepth,
+    };
 
-    const meta = decodeTypeMap[decodeType]
-    if (meta && !audioInfoSent) {
-      audioInfoSent = true
-      self.postMessage({
-        type: 'audioInfo',
-        payload: {
-          codec: meta.format ?? meta.mimeType ?? `type ${decodeType}`,
-          sampleRate: meta.frequency,
-          channels: meta.channel,
-          bitDepth: meta.bitDepth,
-        },
-      })
-    } else if (!meta) {
-      console.warn(`[Worker] Unknown decodeType: ${decodeType} – expected one of ${Object.keys(decodeTypeMap).join(', ')}`)
-    }
+    self.postMessage({
+      type: 'audioInfo',
+      payload: newAudioInfo,
+    });
+  }
 
-    if (audioBuffers[key]) {
-      audioBuffers[key].push(payload.data)
-    } else {
-      pendingAudio[key] = pendingAudio[key] || []
-      pendingAudio[key].push(payload.data)
-      self.postMessage({ type: 'requestBuffer', message: { decodeType, audioType } })
-    }
-
-    const int16 = payload.data
-    const channels = Math.max(1, meta?.channel ?? 2)
-    const frames = Math.floor(int16.length / channels)
-    const f32 = new Float32Array(frames)
+  // PCM FFT/Mono
+  if (meta) {
+    const channels = Math.max(1, meta.channel ?? 2);
+    const frames = Math.floor(int16.length / channels);
+    const float32 = new Float32Array(frames);
 
     for (let i = 0; i < frames; i++) {
-      let sum = 0
-      for (let ch = 0; ch < channels; ch++) {
-        sum += int16[i * channels + ch] || 0
+      let sum = 0;
+      for (let c = 0; c < channels; c++) {
+        sum += int16[i * channels + c] || 0
       }
-      f32[i] = (sum / channels) / 32768
+      float32[i] = (sum / channels) / 32768
+    }
+    self.postMessage(
+      { type: 'pcmData', payload: float32.buffer, decodeType },
+      [float32.buffer]
+    );
+  }
+
+  const key = createAudioPlayerKey(decodeType, audioType);
+  if (audioBuffers[key]) {
+    audioBuffers[key].push(int16);
+  } else {
+    pendingAudio[key] = pendingAudio[key] || [];
+    pendingAudio[key].push(int16);
+    self.postMessage({ type: 'requestBuffer', message: { decodeType, audioType } });
+  }
+
+  lastPcmTimestamp = currentTime;
+}
+
+function setupPorts(mPort: MessagePort) {
+  try {
+    mPort.onmessage = ev => {
+      try {
+        const data = ev.data as any
+        if (data.type === 'audio' && data.buffer) {
+          processAudioData(data);
+        }
+      } catch (e) {
+        console.error('[CARPLAY.WORKER] Error processing audio message:', e);
+      }
     }
 
-    self.postMessage({ type: 'pcmData', payload: f32.buffer }, [f32.buffer])
-
-  } else {
-    self.postMessage(message)
+    mPort.start?.();
+  } catch (e) {
+    console.error('[CARPLAY.WORKER] Error setting up ports:', e);
+    self.postMessage({ type: 'failure', error: 'Port setup failed' });
   }
 }
 
-onmessage = async (ev: MessageEvent<any>) => {
-  const data = ev.data as {
-    type: string
-    payload?: { command?: unknown; [key: string]: any }
-    command?: unknown
-    [key: string]: any
-  }
-
-  const { type, payload = {} } = data
-  const cmd = (payload.command as KeyCommand | undefined) ?? (data.command as KeyCommand | undefined)
-
-  switch (type) {
-    case 'initialise':
-      videoPort = payload.videoPort as MessagePort
-      microphonePort = payload.microphonePort as MessagePort
-      try {
-        if (microphonePort) {
-          microphonePort.onmessage = me => {
-            if (carplayWeb) {
-              const msg = new SendAudio(me.data)
-              carplayWeb.dongleDriver.send(msg)
-            }
-          }
-        }
-      } catch (err) {
-        console.warn('[Worker] Failed to set microphonePort.onmessage:', err)
-      }
-      console.log('[Worker] Initialised ports')
-
-      if (!coldstartHandled) {
-        coldstartHandled = true
-        postMessage({ type: 'autoStartAfterInit' })
+self.onmessage = ev => {
+  const data = ev.data as any
+  switch (data.type) {
+    case 'initialise': {
+      microphonePort = data.payload.microphonePort
+      if (microphonePort) {
+        setupPorts(microphonePort)
+      } else {
+        console.error('[CARPLAY.WORKER] Missing microphonePort in initialise payload!')
       }
       break
-
+    }
     case 'audioPlayer': {
-      const { sab, decodeType, audioType } = payload as {
+      const { sab, decodeType, audioType } = data.payload as {
         sab: SharedArrayBuffer
         decodeType: number
         audioType: number
@@ -155,93 +125,10 @@ onmessage = async (ev: MessageEvent<any>) => {
       delete pendingAudio[key]
       break
     }
-
-    case 'start':
-      if (starting) {
-        console.warn('[Worker] Ignoring duplicate start request')
-        return
-      }
-      starting = true
-
-      try {
-        if (!coldstartTimerStarted) {
-          coldstartTimerStarted = true
-          console.time('coldstart')
-        }
-        try {
-          console.timeLog('coldstart', '[Worker] Starting CarplayWeb')
-        } catch {}
-
-        if (carplayWeb) {
-          await carplayWeb.stop()
-          carplayWeb = null
-        }
-
-        config = (payload as { config: DongleConfig }).config
-        const device = await findDevice()
-        try {
-          console.timeLog('coldstart', '[Worker] Device detected')
-        } catch {}
-
-        if (device) {
-          const instance = new CarplayWeb(config)
-          instance.onmessage = handleMessage
-          await instance.start(device)
-          carplayWeb = instance
-          try {
-            console.timeLog('coldstart', '[Worker] CarplayWeb started')
-          } catch {}
-
-          const dongle = device as any
-          self.postMessage({
-            type: 'dongleInfo',
-            payload: {
-              serial: dongle.serialNumber ?? 'unknown',
-              manufacturer: dongle.manufacturerName ?? 'unknown',
-              product: dongle.productName ?? 'unknown',
-              fwVersion: `${dongle.deviceVersionMajor}.${dongle.deviceVersionMinor}`,
-            },
-          })
-        } else {
-          console.warn('[Worker] No device found')
-        }
-      } catch (err) {
-        console.error('[Worker] Error during start:', err)
-        carplayWeb = null
-      } finally {
-        starting = false
-      }
-      break
-
-    case 'touch':
-      if (carplayWeb) {
-        const { x, y, action } = payload as { x: number; y: number; action: number }
-        carplayWeb.dongleDriver.send(new SendTouch(x, y, action))
-      }
-      break
-
     case 'stop':
-      console.log('[Worker] Stopping CarplayWeb')
-      await carplayWeb?.stop()
-      carplayWeb = null
-      audioInfoSent = false
-      firstFrameLogged = false
-      firstResolutionLogged = false
+      isNewStream = true;
       break
-
-    case 'frame':
-      if (carplayWeb) {
-        carplayWeb.dongleDriver.send(new SendCommand('frame'))
-      }
-      break
-
-    case 'keyCommand':
-      if (!carplayWeb) break
-      if (!cmd) {
-        console.warn('[Worker] keyCommand ohne command:', data)
-        break
-      }
-      carplayWeb.dongleDriver.send(new SendCommand(cmd))
+    default:
       break
   }
 }

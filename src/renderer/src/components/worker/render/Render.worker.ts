@@ -1,7 +1,7 @@
 // Based on https://github.com/codewithpassion/foxglove-studio-h264-extension/tree/main
 // MIT License
 import { getDecoderConfig, isKeyFrame } from './lib/utils'
-import { InitEvent, RenderEvent, WorkerEvent } from './RenderEvents'
+import { InitEvent, WorkerEvent } from './RenderEvents'
 import { WebGL2Renderer } from './WebGL2Renderer'
 import { WebGLRenderer } from './WebGLRenderer'
 import { WebGPURenderer } from './WebGPURenderer'
@@ -21,8 +21,14 @@ export class RendererWorker {
   private frameCount = 0
   private timestamp = 0
   private fps = 0
+  private decoder: VideoDecoder
 
-  constructor() {}
+  constructor() {
+    this.decoder = new VideoDecoder({
+      output: this.onVideoDecoderOutput,
+      error: this.onVideoDecoderOutputError,
+    })
+  }
 
   private onVideoDecoderOutput = (frame: VideoFrame) => {
     if (this.startTime == null) {
@@ -51,13 +57,8 @@ export class RendererWorker {
   }
 
   private onVideoDecoderOutputError = (err: Error) => {
-    console.error(`H264 Render worker decoder error`, err)
+    console.error(`[RENDER.WORKER] Decoder error`, err)
   }
-
-  private decoder = new VideoDecoder({
-    output: this.onVideoDecoderOutput,
-    error: this.onVideoDecoderOutputError,
-  })
 
   init = (event: InitEvent) => {
     switch (event.renderer) {
@@ -73,27 +74,36 @@ export class RendererWorker {
     }
 
     this.videoPort = event.videoPort
-    this.videoPort.onmessage = ev => this.onFrame(ev.data as RenderEvent)
+
+    this.videoPort.onmessage = (ev: MessageEvent<ArrayBuffer>) => {
+      this.onRawFrame(ev.data)
+    }
+
+    this.videoPort.start()
+    self.postMessage({ type: 'render-ready' })
+    console.debug('[RENDER.WORKER] render-ready')
+
 
     if (event.reportFps) {
       setInterval(() => {
         if (this.decoder.state === 'configured') {
-          console.debug(`FPS: ${this.fps}`)
+          console.debug(`[RENDER.WORKER] FPS: ${this.fps.toFixed(2)}`)
         }
       }, 5000)
     }
   }
 
-  private onFrame = (event: RenderEvent) => {
-    console.debug('[WORKER] onFrame() called')
-    console.debug('[WORKER] event.frameData', event.frameData)
-    console.debug('[WORKER] event.frameData.slice(0, 16)', Array.from(new Uint8Array(event.frameData.slice(0, 16))))
-    const frameData = new Uint8Array(event.frameData)
-    console.debug('[WORKER] Uint8Array frameData.slice(0, 16)', Array.from(frameData.slice(0, 16)))
+  private onRawFrame = (buffer: ArrayBuffer) => {
+    if (!buffer || buffer.byteLength === 0) {
+      console.warn('[RENDER.WORKER] Empty buffer received.')
+      return
+    }
+
+    const frameData = new Uint8Array(buffer)
 
     if (this.decoder.state === 'unconfigured') {
       const decoderConfig = getDecoderConfig(frameData)
-      console.debug('[WORKER] decoderConfig', decoderConfig)
+      console.debug('[RENDER.WORKER] Decoder config:', decoderConfig)
 
       if (decoderConfig) {
         this.decoder.configure(decoderConfig)
@@ -105,7 +115,8 @@ export class RendererWorker {
           },
         })
       } else {
-        console.warn('[WORKER] Failed to get decoder config (no SPS?)')
+        console.warn('[RENDER.WORKER] Failed to configure decoder (missing SPS?)')
+        return
       }
     }
 
@@ -116,16 +127,14 @@ export class RendererWorker {
           data: frameData,
           timestamp: this.timestamp++,
         })
-        console.debug('[WORKER] decode chunk', chunk)
         this.decoder.decode(chunk)
       } catch (e) {
-        console.error(`H264 Render Worker decode error`, e)
+        console.error('[RENDER.WORKER] Decode error:', e)
       }
     }
   }
 }
 
-// eslint-disable-next-line no-restricted-globals
 const worker = new RendererWorker()
 scope.addEventListener('message', (event: MessageEvent<WorkerEvent>) => {
   if (event.data.type === 'init') {

@@ -1,13 +1,19 @@
-import { DongleConfig, TouchAction, CarplayMessage, AudioData } from '@carplay/web'
+import { DongleConfig, TouchAction } from '../../../../main/carplay/messages'
 
 export type AudioPlayerKey = string & { __brand: 'AudioPlayerKey' }
 
+export type VideoPortMessage = { type: 'video'; buffer: ArrayBuffer }
+export type AudioPortMessage = { type: 'audio'; buffer: ArrayBuffer; decodeType: number }
+
 export type CarplayWorkerMessage =
-  | { data: CarplayMessage }
-  | { data: { type: 'requestBuffer'; message: AudioData } }
+  | { type: 'resolution'; payload: { width: number; height: number } }
+  | { type: 'audioInfo'; payload: { codec: string; sampleRate: number; channels: number; bitDepth: number } }
+  | { type: 'pcmData'; payload: ArrayBuffer }
+
+
 
 export type InitialisePayload = {
-  videoPort: MessagePort
+  videoPort?: MessagePort
   microphonePort: MessagePort
 }
 
@@ -56,7 +62,7 @@ export type Command =
   | { type: 'start'; payload: StartPayload }
   | { type: 'touch'; payload: { x: number; y: number; action: TouchAction } }
   | { type: 'initialise'; payload: InitialisePayload }
-  | { type: 'audioPlayer'; payload: AudioPlayerPayload }  // neu: AudioPlayer unterstützen
+  | { type: 'audioPlayer'; payload: AudioPlayerPayload }  
   | { type: 'audioBuffer'; payload: AudioPlayerPayload }
   | { type: 'microphoneInput'; payload: Int16Array }
   | { type: 'frame' }

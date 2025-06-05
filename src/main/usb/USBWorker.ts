@@ -1,32 +1,26 @@
-import { parentPort } from 'worker_threads'
-import usb from 'usb'
+import { parentPort } from 'worker_threads';
+import { findDongle }   from './helpers';
 
-if (!parentPort) throw new Error('No parent port found')
+if (!parentPort) throw new Error('No parent port found');
 
-function findDongle() {
-  const devices = usb.getDeviceList()
-  const dongle = devices.find(d =>
-    d.deviceDescriptor.idVendor === 0x1314 &&
-    [0x1520, 0x1521].includes(d.deviceDescriptor.idProduct)
-  )
-  return dongle
-}
+type IncomingMsg = 'check-dongle';
+type OutgoingMsg =
+  | { type: 'dongle-status'; connected: true;  vendorId: number; productId: number }
+  | { type: 'dongle-status'; connected: false };
 
-parentPort.on('message', (msg) => {
-  if (msg === 'check-dongle') {
-    const dongle = findDongle()
-    if (dongle) {
-      parentPort?.postMessage({
+parentPort.on('message', (msg: IncomingMsg) => {
+  if (msg !== 'check-dongle') return;             
+
+  const dongle = findDongle();
+
+  const response: OutgoingMsg = dongle
+    ? {
         type: 'dongle-status',
         connected: true,
-        vendorId: dongle.deviceDescriptor.idVendor,
-        productId: dongle.deviceDescriptor.idProduct,
-      })
-    } else {
-      parentPort?.postMessage({
-        type: 'dongle-status',
-        connected: false,
-      })
-    }
-  }
-})
+        vendorId:   dongle.deviceDescriptor.idVendor,
+        productId:  dongle.deviceDescriptor.idProduct
+      }
+    : { type: 'dongle-status', connected: false };
+
+  parentPort.postMessage(response);
+});

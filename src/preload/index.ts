@@ -1,101 +1,110 @@
-import { contextBridge, ipcRenderer } from 'electron'
-import { ExtraConfig } from '../main/Globals'
+import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
+import { ExtraConfig } from '../main/Globals';
 
-type ApiCallback<T = any> = (event: Electron.IpcRendererEvent, ...args: T[]) => void
+// Typ for Callback function (Events)
+export type ApiCallback<T = any> = (event: IpcRendererEvent, ...args: T[]) => void;
 
-let usbEventQueue: [Electron.IpcRendererEvent, ...any[]][] = []
-let usbEventHandler: ApiCallback<any> | null = null
+// USB-Event-Handling with Queue
+let usbEventQueue: [IpcRendererEvent, ...any[]][] = [];
+let usbEventHandler: ApiCallback<any> | null = null;
 
 ipcRenderer.on('usb-event', (event, ...args) => {
   if (usbEventHandler) {
-    usbEventHandler(event, ...args)
+    usbEventHandler(event, ...args);
   } else {
-    usbEventQueue.push([event, ...args])
+    usbEventQueue.push([event, ...args]);
   }
-})
+});
 
+// VIDEO/AUDIO Chunk-Handling with Queue
+type ChunkHandler = (payload: any) => void;
+
+let videoChunkQueue: any[] = [];
+let videoChunkHandler: ChunkHandler | null = null;
+
+let audioChunkQueue: any[] = [];
+let audioChunkHandler: ChunkHandler | null = null;
+
+ipcRenderer.on('carplay-video-chunk', (_event, payload) => {
+  if (videoChunkHandler) {
+    videoChunkHandler(payload);
+  } else {
+    videoChunkQueue.push(payload);
+    console.log('[PRELOAD] Video chunk queued (no handler set)');
+  }
+});
+
+ipcRenderer.on('carplay-audio-chunk', (_event, payload) => {
+  if (audioChunkHandler) {
+    audioChunkHandler(payload);
+  } else {
+    audioChunkQueue.push(payload);
+    console.log('[PRELOAD] Audio chunk queued (no handler set)');
+  }
+});
+
+
+// API for window.carplay
 const api = {
   quit: () => ipcRenderer.invoke('quit'),
 
-  getSettings: () => ipcRenderer.invoke('getSettings'),
-  saveSettings: (settings: ExtraConfig) => ipcRenderer.invoke('save-settings', settings),
-  onSettingsUpdate: (callback: ApiCallback<ExtraConfig>) => ipcRenderer.on('settings', callback),
+  onUSBResetStatus: (callback: ApiCallback<any>) => {
+      ipcRenderer.on('usb-reset-start', callback);
+      ipcRenderer.on('usb-reset-done', callback);
+    },
 
-  forceReset: () => ipcRenderer.invoke('usb-force-reset'),
-  detectDongle: () => ipcRenderer.invoke('usb-detect-dongle'),
-  getUsbDeviceInfo: () => ipcRenderer.invoke('carplay:usbDevice'),
-  getLastEvent: (): Promise<{ type: 'plugged' | 'unplugged'; device: any } | null> =>
-    ipcRenderer.invoke('usb-last-event'),
-
-  listenForUsbEvents: (callback: ApiCallback<any>) => {
-    usbEventHandler = callback
-    for (const [event, ...args] of usbEventQueue) {
-      callback(event, ...args)
+  // USB
+  usb: {
+    forceReset: () => ipcRenderer.invoke('usb-force-reset'),
+    detectDongle: () => ipcRenderer.invoke('usb-detect-dongle'),
+    getDeviceInfo: () => ipcRenderer.invoke('carplay:usbDevice'),
+    getLastEvent: () => ipcRenderer.invoke('usb-last-event'),
+    getSysdefaultPrettyName: () => ipcRenderer.invoke('get-sysdefault-mic-label'),
+    listenForEvents: (callback: ApiCallback<any>) => {
+      usbEventHandler = callback;
+      usbEventQueue.forEach(([evt, ...args]) => callback(evt, ...args));
+      usbEventQueue = [];
     }
-    usbEventQueue = []
   },
-}
 
-if (process.contextIsolated) {
-  try {
-    contextBridge.exposeInMainWorld('carplay', {
-      quit: api.quit,
-      usb: {
-        forceReset: api.forceReset,
-        detectDongle: api.detectDongle,
-        getDeviceInfo: api.getUsbDeviceInfo,
-        getLastEvent: api.getLastEvent,
-        listenForEvents: api.listenForUsbEvents,
-      },
-      settings: {
-        get: api.getSettings,
-        save: api.saveSettings,
-        onUpdate: api.onSettingsUpdate,
-      },
-    })
-  } catch (error) {
-    console.error('Failed to expose API via context bridge:', error)
-  }
-} else {
-  console.warn('Context isolation is disabled! This is unsafe for production!')
+  // Settings
+  settings: {
+    get: () => ipcRenderer.invoke('getSettings'),
+    save: (settings: ExtraConfig) => ipcRenderer.invoke('save-settings', settings),
+    onUpdate: (callback: ApiCallback<ExtraConfig>) => ipcRenderer.on('settings', callback),
+  },
 
-  window.carplay = {
-    quit: api.quit,
-    usb: {
-      forceReset: api.forceReset,
-      detectDongle: api.detectDongle,
-      getDeviceInfo: api.getUsbDeviceInfo,
-      getLastEvent: api.getLastEvent,
-      listenForEvents: api.listenForUsbEvents,
+  // CarPlay-IPC
+  ipc: {
+    start: () => ipcRenderer.invoke('carplay-start'),
+    stop: () => ipcRenderer.invoke('carplay-stop'),
+    sendFrame: () => ipcRenderer.invoke('carplay-sendframe'),
+    sendTouch: (x: number, y: number, action: number) =>
+      ipcRenderer.send('carplay-touch', { x, y, action }),
+    sendKeyCommand: (key: string) => ipcRenderer.send('carplay-key-command', key),
+    onEvent: (callback: ApiCallback<any>) => ipcRenderer.on('carplay-event', callback),
+
+    onVideoChunk: (handler: ChunkHandler) => {
+      videoChunkHandler = handler;
+      videoChunkQueue.forEach(chunk => {
+        handler(chunk);
+      });
+      videoChunkQueue = [];
     },
-    settings: {
-      get: api.getSettings,
-      save: api.saveSettings,
-      onUpdate: api.onSettingsUpdate,
+    onAudioChunk: (handler: ChunkHandler) => {
+      audioChunkHandler = handler;
+      audioChunkQueue.forEach(chunk => {
+        handler(chunk);
+      });
+      audioChunkQueue = [];
     },
-  }
-}
+  },
+};
+
+contextBridge.exposeInMainWorld('carplay', api);
 
 declare global {
   interface Window {
-    carplay: {
-      quit: () => Promise<void>
-      usb: {
-        forceReset: () => Promise<boolean>
-        detectDongle: () => Promise<boolean>
-        getDeviceInfo: () => Promise<{
-          device: boolean
-          vendorId: number | null
-          productId: number | null
-        }>
-        listenForEvents: (callback: ApiCallback<any>) => void
-        getLastEvent: () => Promise<{ type: 'plugged' | 'unplugged'; device: any } | null>
-      }
-      settings: {
-        get: () => Promise<ExtraConfig>
-        save: (settings: ExtraConfig) => Promise<void>
-        onUpdate: (callback: ApiCallback<ExtraConfig>) => void
-      }
-    }
+    carplay: typeof api;
   }
 }

@@ -17,6 +17,8 @@ import {
   Stack,
   Grid,
   Slider,
+  CircularProgress,
+  Typography,
 } from '@mui/material'
 import { useTheme } from '@mui/material/styles'
 import { TransitionProps } from '@mui/material/transitions'
@@ -42,9 +44,11 @@ export default function Settings({ settings }: SettingsProps) {
     navVolume: settings.navVolume ?? 1.0,
   });
 
+  const [micLabel, setMicLabel] = useState<string>('sysdefault');
   const [cameras, setCameras] = useState<MediaDeviceInfo[]>([]);
-  const [microphones, setMicrophones] = useState<MediaDeviceInfo[]>([]);
   const [openBindings, setOpenBindings] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
+  const [resetMessage, setResetMessage] = useState<string>("");
   const saveSettings = useCarplayStore(s => s.saveSettings);
   const theme = useTheme();
 
@@ -63,7 +67,7 @@ export default function Settings({ settings }: SettingsProps) {
   const requiresRestartParams: (keyof ExtraConfig)[] = [
     'width', 'height', 'fps', 'dpi', 'format', 
     'mediaDelay', 'phoneWorkMode', 'wifiType', 'micType',
-    'camera', 'microphone'
+    'camera'
   ];
 
   const handleSave = async () => {
@@ -73,31 +77,49 @@ export default function Settings({ settings }: SettingsProps) {
         activeSettings[key] !== settings[key]
     );
 
+    setIsResetting(true);
+    setResetMessage("Dongle Reset...");
+
     await saveSettings(activeSettings);
 
-    if (!needsRestart) return;
+    if (!needsRestart) {
+      setIsResetting(false);
+      setResetMessage("");
+      return;
+    }
 
     try {
-      console.log('[Settings] Dongle wird hart zurückgesetzt…');
-      const ok = await window.carplay.usb.forceReset()
-      console.log(
-        ok
-          ? 'Dongle erfolgreich hardware‐zurückgesetzt'
-          : 'Dongle‐Hardware‐Reset fehlgeschlagen'
-      )
+      const resetSuccess = await window.carplay.usb.forceReset();
+      setResetMessage(resetSuccess ? "Dongle Reset - Success" : "Dongle Reset - Failed");
     } catch (error) {
-      console.error('[Settings] USB-Reset Error:', error);
+      setResetMessage("Dongle Reset Error.");
     }
+
+    setIsResetting(false);
   };
+
+  useEffect(() => {
+    window.carplay.usb.getSysdefaultPrettyName().then(label => {
+      if (typeof label === 'string') {
+        setMicLabel(label);
+
+        // Auto-select sysdefault if no microphone is set yet
+        if (!activeSettings.microphone) {
+          const updated = { ...activeSettings, microphone: 'sysdefault' };
+          setActiveSettings(updated);
+          debouncedSave(updated);
+        }
+      }
+    });
+  }, []);
+
 
   useEffect(() => {
     navigator.mediaDevices?.enumerateDevices?.()
       .then(devices => {
-        setMicrophones(devices.filter(d => d.kind === 'audioinput'));
         setCameras(devices.filter(d => d.kind === 'videoinput'));
       }).catch(() => {
         setCameras([]);
-        setMicrophones([]);
       });
   }, []);
 
@@ -120,7 +142,7 @@ export default function Settings({ settings }: SettingsProps) {
      <FormControl fullWidth sx={{ px: 2 }}>
         <FormLabel>{label}</FormLabel>
        <Slider
-         value={(activeSettings[key] as number) * 100}
+         value={Math.round((activeSettings[key] as number) * 100)}
          min={0}
          max={100}
          step={5}
@@ -150,27 +172,6 @@ export default function Settings({ settings }: SettingsProps) {
               value={cam.deviceId}
               control={<Radio />}
               label={cam.label || 'Camera'}
-            />
-          ))}
-        </RadioGroup>
-      </FormControl>
-    </Grid>
-  );
-
-  const renderMicrophones = () => (
-    <Grid size={{ xs: 6 }}>
-      <FormControl fullWidth>
-        <FormLabel>Microphone</FormLabel>
-        <RadioGroup
-          value={activeSettings.microphone}
-          onChange={e => settingsChange('microphone', e.target.value)}
-        >
-          {microphones.map(mic => (
-            <FormControlLabel
-              key={mic.deviceId}
-              value={mic.deviceId}
-              control={<Radio />}
-              label={mic.label || 'Microphone'}
             />
           ))}
         </RadioGroup>
@@ -244,18 +245,44 @@ export default function Settings({ settings }: SettingsProps) {
             </FormControl>
           </Grid>
 
+          <Grid size={{ xs: 3 }}>
+            <FormControl component="fieldset" fullWidth sx={{ mx: 1 }}>
+              <FormLabel component="legend">MICROPHONE</FormLabel>
+              <RadioGroup
+                value={activeSettings.microphone}
+                onChange={e => settingsChange('microphone', e.target.value)}
+              >
+                <FormControlLabel
+                  value={"sysdefault"}
+                  control={<Radio />}
+                  label={micLabel}
+                />
+              </RadioGroup>
+            </FormControl>
+          </Grid>
+
           {cameras.length > 0 && renderCameras()}
-          {microphones.length > 0 && renderMicrophones()}
 
           <Grid size={{ xs: 12 }}>
             <Box display="flex" justifyContent="center" sx={{ mt: 2 }}>
-              <Button variant="contained" onClick={handleSave}>
+              <Button variant="contained" onClick={handleSave} disabled={isResetting}>
                 SAVE
               </Button>
               <Button variant="outlined" onClick={() => setOpenBindings(true)} sx={{ ml: 2 }}>
                 BINDINGS
               </Button>
             </Box>
+            {isResetting && (
+              <Box display="flex" justifyContent="center" sx={{ mt: 2 }}>
+                <CircularProgress />
+              </Box>
+            )}
+            <Dialog open={!!resetMessage}>
+              <DialogTitle>Reset Status</DialogTitle>
+              <DialogContent>
+                <Typography variant="body1">{resetMessage}</Typography>
+              </DialogContent>
+            </Dialog>
           </Grid>
         </Grid>
       </Box>
