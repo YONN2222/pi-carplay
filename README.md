@@ -88,3 +88,14 @@ git clone --branch main --single-branch https://github.com/f-io/pi-carplay.git \
 ## 📝 License
 
 This project is licensed under the MIT License.
+
+##
+
+<p align="center">
+  <strong>☕ Fuel this project</strong><br><br>
+  <a href="https://www.buymeacoffee.com/f_io" target="_blank">
+    <img src="https://cdn.buymeacoffee.com/buttons/default-orange.png" alt="Buy Me A Coffee" height="41" width="174">
+  </a>
+</p>
+
+
