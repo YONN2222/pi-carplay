@@ -44,11 +44,12 @@ export default function Settings({ settings }: SettingsProps) {
     navVolume: settings.navVolume ?? 1.0,
   });
 
-  const [micLabel, setMicLabel] = useState<string>('sysdefault');
+  const [micLabel, setMicLabel] = useState<string>('no device available');
   const [cameras, setCameras] = useState<MediaDeviceInfo[]>([]);
   const [openBindings, setOpenBindings] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const [resetMessage, setResetMessage] = useState<string>("");
+  const [hasChanges, setHasChanges] = useState(false);
   const saveSettings = useCarplayStore(s => s.saveSettings);
   const theme = useTheme();
 
@@ -56,19 +57,29 @@ export default function Settings({ settings }: SettingsProps) {
     saveSettings(newSettings)
   }, 300), [saveSettings])
 
-  const settingsChange = (key: keyof ExtraConfig, value: any) => {
-    const updated = { ...activeSettings, [key]: value }
-    setActiveSettings(updated);
-    if (key === 'audioVolume' || key === 'navVolume') {
-      debouncedSave(updated)
-    }
-  };
-
   const requiresRestartParams: (keyof ExtraConfig)[] = [
     'width', 'height', 'fps', 'dpi', 'format', 
     'mediaDelay', 'phoneWorkMode', 'wifiType', 'micType',
     'camera'
   ];
+
+  const settingsChange = (key: keyof ExtraConfig, value: any) => {
+    const updated = { ...activeSettings, [key]: value };
+    setActiveSettings(updated);
+
+    if (key === 'audioVolume' || key === 'navVolume' || key === 'kiosk' || key === 'nightMode') {
+      debouncedSave(updated);
+    } else {
+      if (requiresRestartParams.includes(key)) {
+        const hasPendingRestart = requiresRestartParams.some(
+          p => updated[p] !== settings[p]
+        );
+        setHasChanges(hasPendingRestart);
+      } else {
+        saveSettings(updated);
+      }
+    }
+  };
 
   const handleSave = async () => {
     const needsRestart = Object.keys(activeSettings).some(
@@ -81,6 +92,7 @@ export default function Settings({ settings }: SettingsProps) {
     setResetMessage("Dongle Reset...");
 
     await saveSettings(activeSettings);
+    setHasChanges(false);
 
     if (!needsRestart) {
       setIsResetting(false);
@@ -99,20 +111,30 @@ export default function Settings({ settings }: SettingsProps) {
   };
 
   useEffect(() => {
-    window.carplay.usb.getSysdefaultPrettyName().then(label => {
-      if (typeof label === 'string') {
-        setMicLabel(label);
+    const updateMicLabel = async () => {
+      try {
+        const label = await window.carplay.usb.getSysdefaultPrettyName();
+        const finalLabel = label && label !== 'sysdefault' && label !== 'null' ? label : 'no device available';
+        setMicLabel(finalLabel);
 
-        // Auto-select sysdefault if no microphone is set yet
-        if (!activeSettings.microphone) {
+        if (!activeSettings.microphone && finalLabel !== 'no device available') {
           const updated = { ...activeSettings, microphone: 'sysdefault' };
           setActiveSettings(updated);
           debouncedSave(updated);
         }
+      } catch (error) {
+        setMicLabel('no device available');
+      }
+    };
+
+    updateMicLabel();
+
+    window.carplay.usb.listenForEvents((_, event) => {
+      if (event?.type === 'attach' || event?.type === 'detach') {
+        updateMicLabel();
       }
     });
   }, []);
-
 
   useEffect(() => {
     navigator.mediaDevices?.enumerateDevices?.()
@@ -132,31 +154,34 @@ export default function Settings({ settings }: SettingsProps) {
         inputProps={{ ...(min !== undefined && { min }), ...(max !== undefined && { max }) }}
         value={activeSettings[key] as number | string}
         onChange={e => settingsChange(key, Number(e.target.value))}
-        sx={{ mx: 1 }}
+        sx={{
+          mx: 2,
+          maxWidth: 140,
+        }}
       />
     </Grid>
   );
 
   const renderSliderField = (label: string, key: keyof ExtraConfig) => (
     <Grid size={{ xs: 6 }} key={String(key)}>
-     <FormControl fullWidth sx={{ px: 2 }}>
+      <FormControl fullWidth sx={{ px: 2 }}>
         <FormLabel>{label}</FormLabel>
-       <Slider
-         value={Math.round((activeSettings[key] as number) * 100)}
-         min={0}
-         max={100}
-         step={5}
-         marks
-         valueLabelDisplay="auto"
-         onChange={(_, val) => {
-         if (typeof val === 'number') {
-            settingsChange(key, val / 100)
-         }
-        }}
-      />
+        <Slider
+          value={Math.round((activeSettings[key] as number) * 100)}
+          min={0}
+          max={100}
+          step={5}
+          marks
+          valueLabelDisplay="auto"
+          onChange={(_, val) => {
+            if (typeof val === 'number') {
+              settingsChange(key, val / 100)
+            }
+          }}
+        />
       </FormControl>
     </Grid>
-  )
+  );
 
   const renderCameras = () => (
     <Grid size={{ xs: 6 }}>
@@ -181,124 +206,145 @@ export default function Settings({ settings }: SettingsProps) {
 
   return (
     <>
-      <Box className={theme.palette.mode === 'dark' ? 'App-header-dark' : 'App-header-light'} p={2}>
-        <Grid container spacing={2}>
-          {renderField('WIDTH', 'width')}
-          {renderField('HEIGHT', 'height')}
-          {renderField('FPS', 'fps')}
-          {renderField('DPI', 'dpi')}
-          {renderField('FORMAT', 'format')}
-          {renderField('IBOX VERSION', 'iBoxVersion')}
-          {renderField('MEDIA DELAY', 'mediaDelay')}
-          {renderField('PHONE WORK MODE', 'phoneWorkMode')}
-          {renderSliderField('AUDIO VOLUME', 'audioVolume')}
-          {renderSliderField('NAV VOLUME', 'navVolume')}
-
-          <Grid size={{ xs: 3 }}>
-            <Stack direction="column" spacing={1} sx={{ mx: 1 }}>
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={activeSettings.kiosk}
-                    onChange={e => settingsChange('kiosk', e.target.checked)}
-                  />
-                }
-                label="KIOSK"
-              />
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={activeSettings.nightMode}
-                    onChange={e => settingsChange('nightMode', e.target.checked)}
-                  />
-                }
-                label="DARK MODE"
-              />
-            </Stack>
-          </Grid>
-
-          <Grid size={{ xs: 3 }}>
-            <FormControl component="fieldset" fullWidth sx={{ mx: 1 }}>
-              <FormLabel component="legend">WIFI TYPE</FormLabel>
-              <RadioGroup
-                row
-                value={activeSettings.wifiType}
-                onChange={e => settingsChange('wifiType', e.target.value)}
-              >
-                <FormControlLabel value="2.4ghz" control={<Radio />} label="2.4G" />
-                <FormControlLabel value="5ghz" control={<Radio />} label="5G" />
-              </RadioGroup>
-            </FormControl>
-          </Grid>
-
-          <Grid size={{ xs: 3 }}>
-            <FormControl component="fieldset" fullWidth sx={{ mx: 1 }}>
-              <FormLabel component="legend">MIC TYPE</FormLabel>
-              <RadioGroup
-                row
-                value={activeSettings.micType}
-                onChange={e => settingsChange('micType', e.target.value)}
-              >
-                <FormControlLabel value="os" control={<Radio />} label="OS" />
-                <FormControlLabel value="box" control={<Radio />} label="BOX" />
-              </RadioGroup>
-            </FormControl>
-          </Grid>
-
-          <Grid size={{ xs: 3 }}>
-            <FormControl component="fieldset" fullWidth sx={{ mx: 1 }}>
-              <FormLabel component="legend">MICROPHONE</FormLabel>
-              <RadioGroup
-                value={activeSettings.microphone}
-                onChange={e => settingsChange('microphone', e.target.value)}
-              >
-                <FormControlLabel
-                  value={"sysdefault"}
-                  control={<Radio />}
-                  label={micLabel}
-                />
-              </RadioGroup>
-            </FormControl>
-          </Grid>
-
-          {cameras.length > 0 && renderCameras()}
-
-          <Grid size={{ xs: 12 }}>
-            <Box display="flex" justifyContent="center" sx={{ mt: 2 }}>
-              <Button variant="contained" onClick={handleSave} disabled={isResetting}>
-                SAVE
-              </Button>
-              <Button variant="outlined" onClick={() => setOpenBindings(true)} sx={{ ml: 2 }}>
-                BINDINGS
-              </Button>
-            </Box>
-            {isResetting && (
-              <Box display="flex" justifyContent="center" sx={{ mt: 2 }}>
-                <CircularProgress />
-              </Box>
-            )}
-            <Dialog open={!!resetMessage}>
-              <DialogTitle>Reset Status</DialogTitle>
-              <DialogContent>
-                <Typography variant="body1">{resetMessage}</Typography>
-              </DialogContent>
-            </Dialog>
-          </Grid>
-        </Grid>
-      </Box>
-
-      <Dialog
-        open={openBindings}
-        TransitionComponent={Transition}
-        keepMounted
-        PaperProps={{ sx: { minHeight: '80%', minWidth: '80%' }}}
-        onClose={() => setOpenBindings(false)}
+      <Box
+        className={theme.palette.mode === 'dark' ? 'App-header-dark' : 'App-header-light'}
+        p={2}
+        display="flex"
+        flexDirection="column"
+        height="100vh"
       >
-        <DialogTitle>Key Bindings</DialogTitle>
-        <DialogContent>
-          <KeyBindings settings={activeSettings} updateKey={settingsChange} />
-        </DialogContent>
-      </Dialog>
+        <Box
+          sx={{
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            flexGrow: 1,
+            pt: 2,
+            pb: 1,
+            px: 1.5,
+          }}
+        >
+          <Grid container spacing={2} sx={{ px: 1 }}>
+            {renderField('WIDTH', 'width')}
+            {renderField('HEIGHT', 'height')}
+            {renderField('FPS', 'fps')}
+            {renderField('DPI', 'dpi')}
+            {renderField('FORMAT', 'format')}
+            {renderField('IBOX VERSION', 'iBoxVersion')}
+            {renderField('MEDIA DELAY', 'mediaDelay')}
+            {renderField('PHONE WORK MODE', 'phoneWorkMode')}
+            {renderSliderField('AUDIO VOLUME', 'audioVolume')}
+            {renderSliderField('NAV VOLUME', 'navVolume')}
+
+            <Grid
+              size={{ xs: 3 }}
+              sx={{
+                minWidth: 140,
+                mx: 2,
+                display: 'flex',
+                justifyContent: 'center',
+              }}
+            >
+              <FormControl>
+                <FormLabel>&nbsp;</FormLabel>
+                <Stack direction="column" spacing={0.5}>
+                  <FormControlLabel
+                    control={<Checkbox checked={activeSettings.kiosk} onChange={e => settingsChange('kiosk', e.target.checked)} />}
+                    label="KIOSK"
+                  />
+                  <FormControlLabel
+                    control={<Checkbox checked={activeSettings.nightMode} onChange={e => settingsChange('nightMode', e.target.checked)} />}
+                    label="DARK MODE"
+                  />
+                </Stack>
+              </FormControl>
+            </Grid>
+
+            <Grid
+              size={{ xs: 3 }}
+              sx={{
+                minWidth: 140,
+                mx: 2,
+                display: 'flex',
+                justifyContent: 'center',
+              }}
+            >
+              <FormControl fullWidth>
+                <FormLabel>WIFI TYPE</FormLabel>
+                <RadioGroup value={activeSettings.wifiType} onChange={e => settingsChange('wifiType', e.target.value)}>
+                  <Stack direction="column">
+                    <FormControlLabel value="2.4ghz" control={<Radio />} label="2.4G" />
+                    <FormControlLabel value="5ghz" control={<Radio />} label="5G" />
+                  </Stack>
+                </RadioGroup>
+              </FormControl>
+            </Grid>
+
+            <Grid
+              size={{ xs: 3 }}
+              sx={{
+                minWidth: 140,
+                mx: 2,
+                display: 'flex',
+                justifyContent: 'center',
+              }}
+            >
+              <FormControl fullWidth>
+                <FormLabel>MICROPHONE</FormLabel>
+                <RadioGroup value={activeSettings.micType} onChange={e => settingsChange('micType', e.target.value)}>
+                  <Stack direction="column">
+                    <FormControlLabel value="os" control={<Radio />} label={<Typography noWrap>OS: {micLabel}</Typography>} />
+                    <FormControlLabel value="box" control={<Radio />} label="BOX" />
+                  </Stack>
+                </RadioGroup>
+              </FormControl>
+            </Grid>
+
+            {cameras.length > 0 && renderCameras()}
+          </Grid>
+        </Box>
+
+        <Box
+          position="sticky"
+          bottom={0}
+          bgcolor={theme.palette.background.default}
+          display="flex"
+          justifyContent="center"
+          sx={{ pt: 1, pb: 1, borderTop: '0px solid', borderColor: theme.palette.divider }}
+        >
+          <Button variant="contained" color={hasChanges ? 'primary' : 'inherit'} onClick={handleSave} disabled={isResetting}>
+            SAVE
+          </Button>
+          <Button variant="outlined" onClick={() => setOpenBindings(true)} sx={{ ml: 2 }}>
+            BINDINGS
+          </Button>
+        </Box>
+
+        {isResetting && (
+          <Box display="flex" justifyContent="center" sx={{ mt: 2 }}>
+            <CircularProgress />
+          </Box>
+        )}
+
+        <Dialog open={!!resetMessage} onClose={() => setResetMessage("")}>
+          <DialogTitle>Reset Status</DialogTitle>
+          <DialogContent>
+            <Typography variant="body1">{resetMessage}</Typography>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog
+          open={openBindings}
+          TransitionComponent={Transition}
+          keepMounted
+          PaperProps={{ sx: { minHeight: '80%', minWidth: '80%' }}}
+          onClose={() => setOpenBindings(false)}
+        >
+          <DialogTitle>Key Bindings</DialogTitle>
+          <DialogContent>
+            <KeyBindings settings={activeSettings} updateKey={settingsChange} />
+          </DialogContent>
+        </Dialog>
+      </Box>
     </>
   );
 }

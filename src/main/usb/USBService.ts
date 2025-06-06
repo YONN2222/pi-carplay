@@ -25,6 +25,7 @@ export class USBService {
 
   private listenToUsbEvents() {
     usbDetect.on('add', device => {
+      this.broadcastGenericUsbEvent({ type: 'attach', device });
       if (this.isDongle(device) && !this.lastDongleState) {
         console.log('[USBService] Dongle connected:', device);
         this.lastDongleState = true;
@@ -33,6 +34,7 @@ export class USBService {
     });
 
     usbDetect.on('remove', device => {
+      this.broadcastGenericUsbEvent({ type: 'detach', device });
       if (this.isDongle(device) && this.lastDongleState) {
         console.log('[USBService] Dongle disconnected:', device);
         this.lastDongleState = false;
@@ -51,6 +53,12 @@ export class USBService {
       }
     };
     BrowserWindow.getAllWindows().forEach(win => win.webContents.send('usb-event', payload));
+  }
+
+  private broadcastGenericUsbEvent(event: { type: 'attach' | 'detach'; device: any }) {
+    BrowserWindow.getAllWindows().forEach(win =>
+      win.webContents.send('usb-event', event)
+    );
   }
 
   private registerIpcHandlers() {
@@ -164,7 +172,4 @@ export class USBService {
     return false;
   }
 }
-
-
-
 }
