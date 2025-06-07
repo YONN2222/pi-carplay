@@ -78,35 +78,35 @@ const Carplay: React.FC<CarplayProps> = ({
   const videoChannel = useMemo(() => new MessageChannel(), [])
   const micChannel = useMemo(() => new MessageChannel(), [])
 
-  //console.debug('[CARPLAY] videoChannel.port1 type:', Object.getPrototypeOf(videoChannel.port1).constructor.name)
-  //console.debug('[CARPLAY] micChannel.port1 type:', Object.getPrototypeOf(micChannel.port1).constructor.name)
 
-// CarPlay Worker Setup
-const carplayWorker = useMemo<CarPlayWorker>(() => {
-  const w = new Worker(
-    new URL('./worker/CarPlay.worker.ts', import.meta.url),
-    { type: 'module' }
-  ) as CarPlayWorker
 
-  w.onerror = (e) => {
-    console.error('Worker error:', e)
-  }
 
-  console.log('[CARPLAY] Creating CarPlayWorker with port:', {
-    microphonePort: micChannel.port1,
-  })
+  // CarPlay Worker Setup
+  const carplayWorker = useMemo<CarPlayWorker>(() => {
+    const w = new Worker(
+      new URL('./worker/CarPlay.worker.ts', import.meta.url),
+      { type: 'module' }
+    ) as CarPlayWorker
 
-  w.postMessage(
-    {
-      type: 'initialise',
-      payload: {
-        microphonePort: micChannel.port1,
+    w.onerror = (e) => {
+      console.error('Worker error:', e)
+    }
+
+    console.log('[CARPLAY] Creating CarPlayWorker with port:', {
+      microphonePort: micChannel.port1,
+    })
+
+    w.postMessage(
+      {
+        type: 'initialise',
+        payload: {
+          microphonePort: micChannel.port1,
+        },
       },
-    },
-    [micChannel.port1]
-  )
-  return w
-}, [micChannel])
+      [micChannel.port1]
+    )
+    return w
+  }, [micChannel])
 
 // Render Worker Setup
 useEffect(() => {
@@ -203,7 +203,7 @@ useEffect(() => {
   const { processAudio, getAudioPlayer, } = useCarplayAudio(carplayWorker)
 
   const sendTouchEvent = useCarplayTouch()
-
+  
   const clearRetryTimeout = useCallback(() => {
     if (retryTimeoutRef.current) {
       clearTimeout(retryTimeoutRef.current)
