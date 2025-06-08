@@ -82,9 +82,11 @@ cat > "$AUTOSTART_DIR/pi-carplay.desktop" <<EOF
 Type=Application
 Name=pi-carplay
 Exec=$APPIMAGE_PATH
+Icon=pi-carplay
 X-GNOME-Autostart-enabled=true
+Categories=AudioVideo;
 EOF
-echo "   Autostart entry at $AUTOSTART_DIR/pi-carplay.desktop"
+echo "Autostart entry at $AUTOSTART_DIR/pi-carplay.desktop"
 
 # 7) Create Desktop shortcut
 echo "→ Creating desktop shortcut"
@@ -107,6 +109,6 @@ Categories=Utility;
 StartupNotify=false
 EOF
 chmod +x "$DESKTOP_DIR/pi-carplay.desktop"
-echo "   Desktop shortcut at $DESKTOP_DIR/pi-carplay.desktop"
+echo "Desktop shortcut at $DESKTOP_DIR/pi-carplay.desktop"
 
 echo "✅ Installation complete!"

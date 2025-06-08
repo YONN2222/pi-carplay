@@ -2,8 +2,12 @@
 name: ci
 
 on:
+  push:
+    branches:
+      - dev
   pull_request:
-    branches: [ "main", "dev" ]
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       branch:
