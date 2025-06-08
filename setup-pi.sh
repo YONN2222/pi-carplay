@@ -50,6 +50,23 @@ for pkg in "${pkgs[@]}"; do
 done
 echo "   All runtime dependencies are ready."
 
+# ICON INSTALLATION
+ICON_SRC="./assets/icons/linux/pi-caraplay.png"
+ICON_DEST="$USER_HOME/.local/share/icons/pi-carplay.png"
+
+if [ -d "$USER_HOME/.local/share" ]; then
+  echo "→ Installing icon to $ICON_DEST"
+  mkdir -p "$(dirname "$ICON_DEST")"
+  if [ -f "$ICON_SRC" ]; then
+    cp "$ICON_SRC" "$ICON_DEST"
+    echo "   App Icon copied."
+  else
+    echo "   Icon source $ICON_SRC not found! Skipping icon install."
+  fi
+else
+  echo "   No ~/.local/share directory, skipping icon installation."
+fi
+
 # 4) Fetch latest ARM64 AppImage from GitHub
 echo "→ Fetching latest pi-carplay release"
 latest_url=$(curl -s https://api.github.com/repos/f-io/pi-carplay/releases/latest \
