@@ -1,0 +1,99 @@
+# .github/workflows/ci.yml
+name: ci
+
+on:
+  pull_request:
+    branches: [ "main", "dev" ]
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to test'
+        required: true
+        default: 'main'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.inputs.branch }}
+
+      - name: Read version from package.json
+        id: pkg
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "Version is $VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT   
+
+      - name: Ensure system packages
+        run: |
+          sudo apt-get update
+          build_pkgs=(build-essential python3 python3-dev libusb-1.0-0-dev libudev-dev pkg-config)
+          runtime_pkgs=(fuse libfuse2 libusb-1.0-0 libudev1)
+          for pkg in "${build_pkgs[@]}"; do
+            dpkg-query -W "$pkg" 2>/dev/null | grep -q "install ok" || sudo apt-get install -y "$pkg"
+          done
+          for pkg in "${runtime_pkgs[@]}"; do
+            dpkg-query -W "$pkg" 2>/dev/null | grep -q "install ok" || sudo apt-get install -y "$pkg"
+          done
+
+      - name: Fetch target branches
+        run: |
+          git fetch origin main
+          if git ls-remote --exit-code --heads origin dev; then
+            echo "→ fetching dev"
+            git fetch origin dev
+          else
+            echo "→ skip fetching dev"
+          fi
+
+      - name: Merge-check into PR target (only PRs)
+        if: github.event_name == 'pull_request'
+        run: |
+          BASE=${{ github.event.pull_request.base.ref }}
+          git checkout $BASE && git reset --hard origin/$BASE
+          git checkout ${{ github.head_ref }}
+          git merge $BASE --no-commit --no-ff || { echo "::error::Merge conflicts with $BASE"; exit 1; }
+
+      - name: Use Node.js 22.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: 'npm'
+
+      - name: Clean & install dependencies
+        run: |
+          rm -rf node_modules package-lock.json
+          npm install
+
+      - name: Rebuild native modules for Electron
+        run: npx electron-rebuild -f -w usb-detection
+
+      - name: Type-Check
+        run: npm run typecheck
+
+      - name: Build Renderer & Main
+        run: npm run build
+
+      - name: Create AppImage (x86)
+        run: npm run build:linux
+
+      - name: Create AppImage (ARM64)
+        run: npm run build:armLinux
+
+      - name: Upload x86 AppImage
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pi-carplay-${{ steps.pkg.outputs.version }}-x86_64.AppImage
+          path: dist/*-x86_64.AppImage
+
+      - name: Upload ARM64 AppImage
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pi-carplay-${{ steps.pkg.outputs.version }}-arm64.AppImage
+          path: dist/*-arm64.AppImage

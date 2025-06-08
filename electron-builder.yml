@@ -19,8 +19,6 @@ asarUnpack:
 linux:
   target:
     - AppImage
-    - snap
-    - deb
   maintainer: "Lasse Heitgres <hello@f-io.dev>"
   category: Utility
 
