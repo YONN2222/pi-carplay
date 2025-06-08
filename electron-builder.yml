@@ -23,6 +23,18 @@ linux:
   maintainer: "Lasse Heitgres <hello@f-io.dev>"
   category: Utility
 
+mac:
+  icon: icons/mac/pi-carplay.icns
+  category: public.app-category.utilities
+  extendInfo:
+    NSCameraUsageDescription: pi-carplay benötigt Zugriff auf die Kamera für CarPlay.
+    NSMicrophoneUsageDescription: pi-carplay benötigt Zugriff auf das Mikrofon für Sprachsteuerung.
+    NSDocumentsFolderUsageDescription: pi-carplay benötigt Zugriff auf Dokumente.
+    NSDownloadsFolderUsageDescription: pi-carplay benötigt Zugriff auf Downloads.
+
+dmg:
+  artifactName: ${name}-${version}-MacOs-${arch}.${ext}
+
 appImage:
   artifactName: ${name}-${version}-${arch}.${ext}
 
