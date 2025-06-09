@@ -45,7 +45,7 @@ The `setup-pi.sh` script will:
 
 ```bash
 node -v
-v22.15.0
+v22.16.0
 
 npm -v
 10.9.2
@@ -73,6 +73,16 @@ git clone --branch main --single-branch https://github.com/f-io/pi-carplay.git \
   && npm install \
   && npm run build \
   && npm run build:armLinux
+```
+
+### 🍎 Mac Requirements (experimental, ARM only)
+For microphone support, install sox via Homebrew:
+```bash
+brew install sox
+```
+If the app does not start or macOS reports it as “damaged,” remove the quarantine attribute:
+```bash
+xattr -cr /Applications/pi-carplay.app
 ```
 
 ## 🔗 Links

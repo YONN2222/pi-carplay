@@ -41,17 +41,16 @@ const Carplay: React.FC<CarplayProps> = ({
   const isStreaming = useStatusStore(s => s.isStreaming)
   const setStreaming = useStatusStore(s => s.setStreaming)
   const setDongleConnected = useStatusStore(s => s.setDongleConnected)
+  const isDongleConnected = useStatusStore(s => s.isDongleConnected)
   const resetInfo = useCarplayStore(s => s.resetInfo)
   const setDeviceInfo = useCarplayStore(s => s.setDeviceInfo)
   const setNegotiatedResolution = useCarplayStore(s => s.setNegotiatedResolution)
   const setAudioInfo = useCarplayStore(s => s.setAudioInfo)
   const setPcmData = useCarplayStore(s => s.setPcmData)
 
-  // Local State
-  const [deviceFound, setDeviceFound] = useState(false)
   useEffect(() => {
-    console.log('[UI] deviceFound state changed:', deviceFound)
-  }, [deviceFound])
+    console.log('[UI] Dongle connected:', isDongleConnected)
+  }, [isDongleConnected])
 
   // Refs
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -293,7 +292,6 @@ useEffect(() => {
     const onUsbConnect = async () => {
       if (!hasStartedRef.current) {
         resetInfo()
-        setDeviceFound(true)
         setDongleConnected(true)
         hasStartedRef.current = true
         await window.carplay.ipc.start()
@@ -301,7 +299,6 @@ useEffect(() => {
     }
     const onUsbDisconnect = async () => {
       clearRetryTimeout()
-      setDeviceFound(false)
       setReceivingVideo(false)
       setStreaming(false)
       setDongleConnected(false)
@@ -312,7 +309,6 @@ useEffect(() => {
         canvasRef.current.style.width = '0'
         canvasRef.current.style.height = '0'
       }
-      navigate('/')
     }
     const usbHandler = (_: any, data: { type: string }) => {
       if (data.type === 'plugged') onUsbConnect()
@@ -426,7 +422,7 @@ useEffect(() => {
         pathname === '/' ? { height: '100%', width: '100%', touchAction: 'none' } : { display: 'none' }
       }
     >
-      {(!deviceFound || isLoading) && pathname === '/' && (
+      {(!isDongleConnected || isLoading) && pathname === '/' && (
         <div
           style={{
             position: 'absolute',
@@ -439,7 +435,7 @@ useEffect(() => {
           }}
         >
           <Typography>
-            {!deviceFound ? 'Searching For Dongle' : 'Searching For Phone'}
+            {!isDongleConnected ? 'Searching For Dongle' : 'Searching For Phone'}
           </Typography>
         </div>
       )}

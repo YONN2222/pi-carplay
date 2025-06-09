@@ -27,13 +27,13 @@ mac:
   icon: icons/mac/pi-carplay.icns
   category: public.app-category.utilities
   extendInfo:
-    NSCameraUsageDescription: pi-carplay benötigt Zugriff auf die Kamera für CarPlay.
-    NSMicrophoneUsageDescription: pi-carplay benötigt Zugriff auf das Mikrofon für Sprachsteuerung.
-    NSDocumentsFolderUsageDescription: pi-carplay benötigt Zugriff auf Dokumente.
-    NSDownloadsFolderUsageDescription: pi-carplay benötigt Zugriff auf Downloads.
-
+    NSCameraUsageDescription: pi-carplay requires camera access for CarPlay.
+    NSMicrophoneUsageDescription: pi-carplay requires microphone access for voice control.
+    NSDocumentsFolderUsageDescription: pi-carplay requires access to documents.
+    NSDownloadsFolderUsageDescription: pi-carplay requires access to downloads.
+    
 dmg:
-  artifactName: ${name}-${version}-MacOs-${arch}.${ext}
+  artifactName: ${name}-${version}-${arch}.${ext}
 
 appImage:
   artifactName: ${name}-${version}-${arch}.${ext}

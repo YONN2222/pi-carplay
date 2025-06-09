@@ -3,10 +3,11 @@ name: build
 on:
   push:
     branches:
-      - dev
+      - main
   pull_request:
     branches:
       - main
+      - dev
   workflow_dispatch:
     inputs:
       branch:
