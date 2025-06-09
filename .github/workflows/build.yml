@@ -74,7 +74,7 @@ jobs:
           path: dist/*-x86_64.AppImage
 
   build_arm64:
-    name: Build AppImage (ARM64)
+    name: Build AppImage (arm64)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -103,7 +103,9 @@ jobs:
             node --version
             npm --version
             apt-get install -y build-essential python3 python3-dev libusb-1.0-0-dev libudev-dev pkg-config fuse libfuse2 libusb-1.0-0 libudev1
-            npm install
+            echo "==> Waiting for file system to settle (QEMU workaround)..."
+            sleep 5
+            npm install --unsafe-perm --no-audit --loglevel=verbose
             npx electron-rebuild -f
             npm run typecheck
             npm run build
@@ -116,5 +118,62 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: pi-carplay-${{ steps.pkg.outputs.version }}-arm64.AppImage
+          name: pi-carplay-${{ steps.pkg.outputs.version }}-linux-arm64.AppImage
           path: dist/*-arm64.AppImage
+
+  build_mac:
+    name: Build macOS (arm64)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.inputs.branch }}
+
+      - name: Read version from package.json
+        id: pkg
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "Version is $VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT   
+
+      - name: Ensure system packages
+        run: |
+          brew update
+          for pkg in libusb pkg-config; do
+            if brew list --versions "$pkg" >/dev/null; then
+              brew upgrade "$pkg"
+            else
+              brew install "$pkg"
+            fi
+          done
+
+      - name: Use Node.js 22.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: 'npm'
+
+      - name: Clean & install dependencies
+        run: |
+          rm -rf node_modules package-lock.json
+          npm install
+
+      - name: Rebuild native modules for Electron
+        run: npx electron-rebuild -f
+
+      - name: Type-Check
+        run: npm run typecheck
+
+      - name: Build Renderer & Main
+        run: npm run build
+
+      - name: Create macOS App
+        run: npm run build:mac
+
+      - name: Upload macOS App
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pi-carplay-${{ steps.pkg.outputs.version }}-darwin-arm64.dmg
+          path: dist/*arm64.dmg

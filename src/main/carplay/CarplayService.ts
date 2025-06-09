@@ -1,4 +1,4 @@
-import { ipcMain, WebContents } from 'electron'
+import { app, ipcMain, WebContents } from 'electron'
 import { WebUSBDevice } from 'usb'
 import {
   Plugged,
@@ -134,7 +134,7 @@ export class CarplayService {
   private async start() {
     if (this.started) return
     try {
-      const configPath = path.join(process.env.HOME || '', '.config/pi-carplay/config.json')
+      const configPath = path.join(app.getPath('userData'), 'config.json')
       const userConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'))
       this.config = { ...this.config, ...userConfig }
     } catch {

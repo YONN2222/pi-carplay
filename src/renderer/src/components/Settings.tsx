@@ -39,7 +39,7 @@ const Transition = React.forwardRef(function Transition(
 });
 
 export default function Settings({ settings }: SettingsProps) {
-  const navigate = useNavigate(); // Hier verwenden wir den useNavigate Hook
+  const navigate = useNavigate();
   const [activeSettings, setActiveSettings] = useState<ExtraConfig>({
     ...settings,
     audioVolume: settings.audioVolume ?? 1.0,
@@ -99,8 +99,7 @@ export default function Settings({ settings }: SettingsProps) {
     setHasChanges(false);
     setIsResetting(false);
 
-    // Nach dem Speichern und Reset den Countdown starten
-    setCloseCountdown(3); // Setzt den Countdown auf 3 Sekunden
+    setCloseCountdown(3);
   };
 
   useEffect(() => {
@@ -110,14 +109,14 @@ export default function Settings({ settings }: SettingsProps) {
         if (prev <= 1) {
           clearInterval(timerId);
           setResetMessage("");
-          navigate('/'); // Nach Ablauf des Timers zur Startseite navigieren
+          navigate('/');
           return 0;
         }
         return prev - 1;
       });
     }, 1000);
     return () => clearInterval(timerId);
-  }, [resetMessage, navigate]); // Abhängigkeit von resetMessage und navigate
+  }, [resetMessage, navigate]);
 
   useEffect(() => {
     const updateMic = async () => {
@@ -183,11 +182,10 @@ export default function Settings({ settings }: SettingsProps) {
     </Grid>
   );
 
-  // Funktion zum Schließen des Dialogs und Weiterleiten zur Carplay-Seite
   const handleClosePopup = () => {
-    setResetMessage("");  // Popup schließen
-    setCloseCountdown(0); // Timer stoppen
-    navigate('/');  // Zur Carplay-Seite weiterleiten
+    setResetMessage("");
+    setCloseCountdown(0);
+    navigate('/');
   };
 
   return (
@@ -240,7 +238,7 @@ export default function Settings({ settings }: SettingsProps) {
           </Grid>
         </Box>
         <Box position="sticky" bottom={0} bgcolor={theme.palette.background.default} display="flex" justifyContent="center" sx={{pt:1,pb:1,borderTop:'0px solid',borderColor:theme.palette.divider}}>
-          <Button variant="contained" color={hasChanges?'primary':'inherit'} onClick={handleSave} disabled={isResetting}>SAVE</Button>
+          <Button variant="contained" color={hasChanges ? 'primary' : 'inherit'} onClick={hasChanges ? handleSave : undefined} disabled={!hasChanges || isResetting} > SAVE </Button>
           <Button variant="outlined" onClick={()=>setOpenBindings(true)} sx={{ml:2}}>BINDINGS</Button>
         </Box>
         {isResetting && <Box display="flex" justifyContent="center" sx={{mt:2}}><CircularProgress/></Box>}
