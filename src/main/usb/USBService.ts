@@ -104,7 +104,14 @@ export class USBService {
       return await this.getDongleInfo(detectDev);
     });
 
-    ipcMain.handle('usb-force-reset', () => this.forceReset());
+    ipcMain.handle('usb-force-reset', async () => {
+      if (process.platform === 'darwin') {
+        console.log('[USBService] macOS detected – using graceful reset');
+        return this.gracefulForceReset();
+      } else {
+        return this.forceReset();
+      }
+    });
 
     ipcMain.handle('usb-last-event', async () => {
       if (this.lastDongleState) {
@@ -180,50 +187,76 @@ export class USBService {
 
   private async forceReset(): Promise<boolean> {
     this.notifyReset('usb-reset-start', true);
-
     const dongle = findDongle();
     if (dongle) {
       this.lastDongleState = false;
       this.broadcastGenericUsbEvent({ type: 'detach', device: dongle });
       this.notifyDeviceChange(dongle, false);
     }
-
-    try {
-      if (!dongle) {
-        console.warn('[USB] Dongle not found');
-        this.notifyReset('usb-reset-done', false);
-        return false;
-      }
-
-      await new Promise(resolve => setTimeout(resolve, 120)); // 100–200ms
-
-      dongle.open();
-      dongle.reset(err => {
-        if (err) {
-          const msg = String(err.message ?? err);
-          if (
-            msg.includes('LIBUSB_ERROR_NOT_FOUND') ||
-            msg.includes('LIBUSB_ERROR_NO_DEVICE') ||
-            msg.includes('LIBUSB_TRANSFER_NO_DEVICE')
-          ) {
-            console.warn('[USB] reset triggered disconnect – treating as success');
-            this.notifyReset('usb-reset-done', true);
-          } else {
-            console.error('[USB] reset error', err);
-            this.notifyReset('usb-reset-done', false);
-          }
-        } else {
-          console.log('[USB] reset ok');
-          this.notifyReset('usb-reset-done', true);
-        }
-        try { dongle.close(); } catch {}
-      });
-
-      return true;
-    } catch (e) {
-      console.error('[USB] Exception during reset', e);
+    if (!dongle) {
+      console.warn('[USB] Dongle not found');
       this.notifyReset('usb-reset-done', false);
       return false;
     }
+    return this.resetDongle(dongle);
+  }
+
+  private async gracefulForceReset(): Promise<boolean> {
+    this.notifyReset('usb-reset-start', true);
+    const dongle = findDongle();
+    if (!dongle) {
+      console.warn('[USB] Dongle not found');
+      this.notifyReset('usb-reset-done', false);
+      return false;
+    }
+    try {
+      console.log('[USB] Graceful reset: stopping CarPlay...');
+      await this.carplay.stop();
+      await new Promise(resolve => setTimeout(resolve, 300));
+      this.lastDongleState = false;
+      this.broadcastGenericUsbEvent({ type: 'detach', device: dongle });
+      this.notifyDeviceChange(dongle, false);
+      return await this.resetDongle(dongle);
+    } catch (e) {
+      console.error('[USB] Exception during graceful reset', e);
+      this.notifyReset('usb-reset-done', false);
+      return false;
+    }
+  }
+
+
+  private async resetDongle(dongle: Device): Promise<boolean> {
+    return new Promise(resolve => {
+      try {
+        dongle.open();
+        dongle.reset(err => {
+          if (err) {
+            const msg = String(err.message ?? err);
+            if (
+              msg.includes('LIBUSB_ERROR_NOT_FOUND') ||
+              msg.includes('LIBUSB_ERROR_NO_DEVICE') ||
+              msg.includes('LIBUSB_TRANSFER_NO_DEVICE')
+            ) {
+              console.warn('[USB] reset triggered disconnect – treating as success');
+              this.notifyReset('usb-reset-done', true);
+              resolve(true);
+            } else {
+              console.error('[USB] reset error', err);
+              this.notifyReset('usb-reset-done', false);
+              resolve(false);
+            }
+          } else {
+            console.log('[USB] reset ok');
+            this.notifyReset('usb-reset-done', true);
+            resolve(true);
+          }
+          try { dongle.close(); } catch {}
+        });
+      } catch (e) {
+        console.error('[USB] Exception during resetDongle()', e);
+        this.notifyReset('usb-reset-done', false);
+        resolve(false);
+      }
+    });
   }
 }
