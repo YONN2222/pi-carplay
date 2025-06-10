@@ -27,9 +27,21 @@ let isQuitting = false;
 const carplayService = new CarplayService();
 (global as any).carplayService = carplayService;
 
-app.on('before-quit', () => {
-  isQuitting = true;
-});
+if (process.platform === 'darwin') {
+  app.on('before-quit', async (e) => {
+    if (isQuitting) return;
+    isQuitting = true;
+    e.preventDefault();
+
+    try {
+      await carplayService.stop().catch(console.warn);
+      usbService?.stop();
+      await new Promise(r => setTimeout(r, 100));
+    } finally {
+      app.exit(0);
+    }
+  });
+}
 
 app.on('will-quit', async () => {
   if (usbService) usbService.stop();
@@ -53,7 +65,7 @@ const DEFAULT_BINDINGS: KeyBindings = {
 const EXTRA_CONFIG: ExtraConfig = {
   ...DEFAULT_CONFIG,
   kiosk: true, camera: '', microphone: '', nightMode: true,
-  audioVolume: 100, navVolume: 50, bindings: DEFAULT_BINDINGS
+  audioVolume: 1.0, navVolume: 0.5, bindings: DEFAULT_BINDINGS
 };
 
 if (!existsSync(configPath))

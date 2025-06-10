@@ -23,8 +23,8 @@ import {
 import { useTheme } from '@mui/material/styles'
 import { TransitionProps } from '@mui/material/transitions'
 import { KeyBindings } from "./KeyBindings"
-import { useCarplayStore } from "../store/store"
-import { useNavigate } from 'react-router-dom'
+import { useCarplayStore, useStatusStore } from "../store/store"
+
 import debounce from 'lodash.debounce'
 
 interface SettingsProps {
@@ -39,7 +39,6 @@ const Transition = React.forwardRef(function Transition(
 });
 
 export default function Settings({ settings }: SettingsProps) {
-  const navigate = useNavigate();
   const [activeSettings, setActiveSettings] = useState<ExtraConfig>({
     ...settings,
     audioVolume: settings.audioVolume ?? 1.0,
@@ -54,6 +53,8 @@ export default function Settings({ settings }: SettingsProps) {
   const [closeCountdown, setCloseCountdown] = useState<number>(0);
   const [hasChanges, setHasChanges] = useState(false);
   const saveSettings = useCarplayStore(s => s.saveSettings);
+  const isDongleConnected = useStatusStore(s => s.isDongleConnected);
+
 
   const theme = useTheme();
 
@@ -84,22 +85,27 @@ export default function Settings({ settings }: SettingsProps) {
 
   const handleSave = async () => {
     setIsResetting(true);
-    setResetMessage("Dongle Reset...");
     setCloseCountdown(3);
 
+    let resetStatus = "";
+
     try {
-      const ok = await window.carplay.usb.forceReset();
-      setResetMessage(ok ? "Success" : "Failed");
+      if (isDongleConnected) {
+        setResetMessage("Dongle Reset...");
+        const ok = await window.carplay.usb.forceReset();
+        resetStatus = ok ? "Success" : "Failed";
+      } else {
+        resetStatus = "Settings saved (no dongle connected)";
+      }
     } catch (error) {
       console.error('[Settings] Reset failed:', error);
-      setResetMessage("Dongle Reset Error.");
+      resetStatus = "Dongle Reset Error.";
     }
 
     await saveSettings(activeSettings);
     setHasChanges(false);
     setIsResetting(false);
-
-    setCloseCountdown(3);
+    setResetMessage(resetStatus);
   };
 
   useEffect(() => {
@@ -109,14 +115,13 @@ export default function Settings({ settings }: SettingsProps) {
         if (prev <= 1) {
           clearInterval(timerId);
           setResetMessage("");
-          navigate('/');
           return 0;
         }
         return prev - 1;
       });
     }, 1000);
     return () => clearInterval(timerId);
-  }, [resetMessage, navigate]);
+  }, [resetMessage]);
 
   useEffect(() => {
     const updateMic = async () => {
@@ -185,7 +190,6 @@ export default function Settings({ settings }: SettingsProps) {
   const handleClosePopup = () => {
     setResetMessage("");
     setCloseCountdown(0);
-    navigate('/');
   };
 
   return (
