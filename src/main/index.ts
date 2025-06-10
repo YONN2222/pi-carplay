@@ -27,9 +27,21 @@ let isQuitting = false;
 const carplayService = new CarplayService();
 (global as any).carplayService = carplayService;
 
-app.on('before-quit', () => {
-  isQuitting = true;
-});
+if (process.platform === 'darwin') {
+  app.on('before-quit', async (e) => {
+    if (isQuitting) return;
+    isQuitting = true;
+    e.preventDefault();
+
+    try {
+      await carplayService.stop().catch(console.warn);
+      usbService?.stop();
+      await new Promise(r => setTimeout(r, 100));
+    } finally {
+      app.exit(0);
+    }
+  });
+}
 
 app.on('will-quit', async () => {
   if (usbService) usbService.stop();
