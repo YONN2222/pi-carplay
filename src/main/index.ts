@@ -53,7 +53,7 @@ const DEFAULT_BINDINGS: KeyBindings = {
 const EXTRA_CONFIG: ExtraConfig = {
   ...DEFAULT_CONFIG,
   kiosk: true, camera: '', microphone: '', nightMode: true,
-  audioVolume: 100, navVolume: 50, bindings: DEFAULT_BINDINGS
+  audioVolume: 1.0, navVolume: 0.5, bindings: DEFAULT_BINDINGS
 };
 
 if (!existsSync(configPath))
