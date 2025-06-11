@@ -2,23 +2,29 @@ name: build
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   pull_request:
-    branches:
-      - main
-      - dev
+    branches: [main, dev]
   workflow_dispatch:
     inputs:
       branch:
         description: 'Branch to test'
         required: true
         default: 'main'
+      create_release:
+        description: 'Create draft GitHub release'
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   build_x86_64:
     name: Build AppImage (x86_64)
     runs-on: ubuntu-latest
+
+    outputs:
+      version: ${{ steps.pkg.outputs.version }}
+
     steps:
       - uses: actions/checkout@v4
         with:
@@ -30,22 +36,17 @@ jobs:
         run: |
           VERSION=$(node -p "require('./package.json').version")
           echo "Version is $VERSION"
-          echo "version=$VERSION" >> $GITHUB_OUTPUT   
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Ensure system packages
         run: |
           sudo apt-get update
           build_pkgs=(build-essential python3 python3-dev libusb-1.0-0-dev libudev-dev pkg-config)
           runtime_pkgs=(fuse libfuse2 libusb-1.0-0 libudev1)
-          for pkg in "${build_pkgs[@]}"; do
-            dpkg-query -W "$pkg" 2>/dev/null | grep -q "install ok" || sudo apt-get install -y "$pkg"
-          done
-          for pkg in "${runtime_pkgs[@]}"; do
-            dpkg-query -W "$pkg" 2>/dev/null | grep -q "install ok" || sudo apt-get install -y "$pkg"
-          done
+          for pkg in "${build_pkgs[@]}";   do dpkg-query -W "$pkg" 2>/dev/null | grep -q "install ok" || sudo apt-get install -y "$pkg"; done
+          for pkg in "${runtime_pkgs[@]}"; do dpkg-query -W "$pkg" 2>/dev/null | grep -q "install ok" || sudo apt-get install -y "$pkg"; done
 
-      - name: Use Node.js 22.x
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 22.x
           cache: 'npm'
@@ -54,7 +55,7 @@ jobs:
         run: |
           rm -rf node_modules package-lock.json
           npm install
-          
+
       - name: Rebuild native modules for Electron
         run: npx electron-rebuild -f
 
@@ -68,7 +69,6 @@ jobs:
         run: npm run build:linux
 
       - name: Upload x86 AppImage
-        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: pi-carplay-${{ steps.pkg.outputs.version }}-x86_64.AppImage
@@ -82,14 +82,14 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ github.event.inputs.branch }}
-          
+
       - name: Read version from package.json
         id: pkg
         run: |
           VERSION=$(node -p "require('./package.json').version")
           echo "Version is $VERSION"
-          echo "version=$VERSION" >> $GITHUB_OUTPUT   
-    
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
       - name: Run on ARM64
         uses: uraimo/run-on-arch-action@v2
         with:
@@ -98,7 +98,6 @@ jobs:
           run: |
             apt-get update
             apt-get install -y curl
-            # Install Node.js 22.x ARM64
             curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
             apt-get install -y nodejs
             node --version
@@ -111,12 +110,10 @@ jobs:
             npm run typecheck
             npm run build
             npm run build:armLinux
-            # Move AppImage to workspace so GitHub Action can access it outside the container
             mkdir -p /github/workspace/dist/
             cp dist/*-arm64.AppImage /github/workspace/dist/
 
       - name: Upload ARM64 AppImage
-        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: pi-carplay-${{ steps.pkg.outputs.version }}-linux-arm64.AppImage
@@ -136,21 +133,16 @@ jobs:
         run: |
           VERSION=$(node -p "require('./package.json').version")
           echo "Version is $VERSION"
-          echo "version=$VERSION" >> $GITHUB_OUTPUT   
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Ensure system packages
         run: |
           brew update
           for pkg in libusb pkg-config; do
-            if brew list --versions "$pkg" >/dev/null; then
-              brew upgrade "$pkg"
-            else
-              brew install "$pkg"
-            fi
+            brew list --versions "$pkg" >/dev/null && brew upgrade "$pkg" || brew install "$pkg"
           done
 
-      - name: Use Node.js 22.x
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 22.x
           cache: 'npm'
@@ -173,8 +165,32 @@ jobs:
         run: npm run build:mac
 
       - name: Upload macOS App
-        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: pi-carplay-${{ steps.pkg.outputs.version }}-darwin-arm64.dmg
           path: dist/*arm64.dmg
+
+  draft_release:
+    if: >
+      github.event_name == 'workflow_dispatch' &&
+      github.event.inputs.create_release == 'true'
+    needs: [build_x86_64, build_arm64, build_mac]
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+
+      - run: ls -R release-assets
+
+      - name: Create draft release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          tag_name: v${{ needs.build_x86_64.outputs.version }}
+          name:     v${{ needs.build_x86_64.outputs.version }}
+          files: |
+            release-assets/**/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
