@@ -197,9 +197,9 @@ export default function Settings({ settings }: SettingsProps) {
       <Box className={theme.palette.mode==='dark'?'App-header-dark':'App-header-light'} p={2} display="flex" flexDirection="column" height="100vh">
         <Box sx={{overflowY:'auto', overflowX:'hidden', flexGrow:1, pt:2, pb:1, px:1.5}}>
           <Grid container spacing={2} sx={{ px:1 }}>
-            {renderField('WIDTH','width')}
-            {renderField('HEIGHT','height')}
-            {renderField('FPS','fps')}
+            {renderField('WIDTH', 'width', 800)}
+            {renderField('HEIGHT','height', 480)}
+            {renderField('FPS','fps', 10)}
             {renderField('DPI','dpi')}
             {renderField('FORMAT','format')}
             {renderField('IBOX VERSION','iBoxVersion')}
