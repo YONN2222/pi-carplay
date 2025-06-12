@@ -27,28 +27,6 @@ let isQuitting = false;
 const carplayService = new CarplayService();
 (global as any).carplayService = carplayService;
 
-const MIN_WIDTH = 400;
-
-function applyAspectRatio(win: BrowserWindow, width: number, height: number): void {
-  if (!win) return;
-
-  const ratio = width === 0 || height === 0 ? 0 : width / height;
-
-  const [winW, winH]     = win.getSize();
-  const [contentW, contentH] = win.getContentSize();
-  const extraWidth  = Math.max(0, winW - contentW);
-  const extraHeight = Math.max(0, winH - contentH);
-
-  win.setAspectRatio(ratio, { width: extraWidth, height: extraHeight });
-
-  if (ratio > 0) {
-    const minH = Math.round(MIN_WIDTH / ratio);
-    win.setMinimumSize(MIN_WIDTH + extraWidth, minH + extraHeight);
-  } else {
-    win.setMinimumSize(0, 0);
-  }
-}
-
 if (process.platform === 'darwin') {
   app.on('before-quit', async (e) => {
     if (isQuitting) return;
@@ -95,7 +73,7 @@ if (!existsSync(configPath))
 
 config = JSON.parse(readFileSync(configPath, 'utf8'));
 if (Object.keys(config).sort().join(',') !== Object.keys(EXTRA_CONFIG).sort().join(',')) {
-  config = { ...EXTRA_CONFIG, ...config } as ExtraConfig;
+  config = { ...EXTRA_CONFIG, ...config };
   writeFileSync(configPath, JSON.stringify(config, null, 2));
 }
 
@@ -147,15 +125,7 @@ function createWindow(): void {
   mainWindow.once('ready-to-show', () => {
     if (!mainWindow) return;
     mainWindow.show();
-
-    if (config.kiosk) {
-      mainWindow.setKiosk(true);
-      applyAspectRatio(mainWindow, 0, 0);
-    } else {
-      mainWindow.setContentSize(config.width, config.height, false);
-      applyAspectRatio(mainWindow, config.width, config.height);
-    }
-
+    if (config.kiosk) mainWindow.setKiosk(true);
     if (is.dev) mainWindow.webContents.openDevTools({ mode: 'detach' });
     carplayService.attachRenderer(mainWindow.webContents);
   });
@@ -250,18 +220,6 @@ function saveSettings(settings: ExtraConfig) {
       mediaDelay: +settings.mediaDelay
     }, null, 2)
   );
-  
   socket.config = settings;
   socket.sendSettings();
-
-  if (!mainWindow) return;
-
-  if (settings.kiosk) {
-    mainWindow.setKiosk(true);
-    applyAspectRatio(mainWindow, 0, 0);
-  } else {
-    mainWindow.setKiosk(false);
-    mainWindow.setContentSize(settings.width, settings.height, false);
-    applyAspectRatio(mainWindow, settings.width, settings.height);
-  }
 }

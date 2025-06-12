@@ -14,39 +14,44 @@ import { ExtraConfig } from '../../../main/Globals'
 
 interface NavProps {
   settings: ExtraConfig | null
+  receivingVideo: boolean
 }
 
-export default function Nav({ settings }: NavProps) {
+export default function Nav({ receivingVideo }: NavProps) {
   const theme = useTheme()
   const { pathname } = useLocation()
 
   const isDongleConnected = useStatusStore(s => s.isDongleConnected)
-  const isStreaming = useStatusStore(s => s.isStreaming)
-  const cameraFound = useStatusStore(s => s.cameraFound)
+  const isStreaming       = useStatusStore(s => s.isStreaming)
+  const cameraFound       = useStatusStore(s => s.cameraFound)
 
   if (isStreaming && pathname === '/') {
     return null
   }
 
   const routeToIndex: Record<string, number> = {
-    '/': 0,
+    '/':         0,
     '/settings': 1,
-    '/info': 2,
-    '/camera': 3,
+    '/info':     2,
+    '/camera':   3,
   }
   const value = routeToIndex[pathname] ?? 0
 
   let icon: React.ReactNode
   let color: string
+
   if (!isDongleConnected) {
-    icon = <PhonelinkOffIcon />
+    icon  = <PhonelinkOffIcon />
     color = theme.palette.text.disabled
   } else if (!isStreaming) {
-    icon = <PhonelinkIcon />
+    icon  = <PhonelinkIcon />
     color = theme.palette.text.primary
-  } else {
-    icon = <PhonelinkIcon />
+  } else if (receivingVideo) {
+    icon  = <PhonelinkIcon />
     color = theme.palette.success.main
+  } else {
+    icon  = <PhonelinkIcon />
+    color = theme.palette.text.primary
   }
 
   const quit = () => {
@@ -67,22 +72,21 @@ export default function Nav({ settings }: NavProps) {
         to="/"
         sx={{ '& svg': { color } }}
       />
-      <Tab icon={<TuneIcon />} component={Link} to="/settings" />
+      <Tab icon={<TuneIcon />}       component={Link} to="/settings" />
       <Tab icon={<HelpCenterIcon />} component={Link} to="/info" />
-      {settings?.camera && (
-        <Tab
-          icon={<CameraIcon />}
-          component={Link}
-          to="/camera"
-          sx={{
-            '& svg': {
-              color: cameraFound
-                ? theme.palette.common.white
-                : theme.palette.text.disabled
-            }
-          }}
-        />
-      )}
+      <Tab
+        icon={<CameraIcon />}
+        component={Link}
+        to="/camera"
+        disabled={!cameraFound}
+        sx={{
+          '& svg': {
+            color: cameraFound
+              ? theme.palette.common.white
+              : theme.palette.text.disabled
+          }
+        }}
+      />
       <Tab icon={<CloseIcon />} onClick={quit} />
     </Tabs>
   )

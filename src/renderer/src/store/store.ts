@@ -165,7 +165,6 @@ socket.on('dongle-status', (connected: boolean) => {
 socket.on('stream-status', (streaming: boolean) => {
   useStatusStore.setState({ isStreaming: streaming })
 })
-// Optional: falls der Server Kamerastatus sendet
 socket.on('camera-found', (found: boolean) => {
   useStatusStore.setState({ cameraFound: found })
 })

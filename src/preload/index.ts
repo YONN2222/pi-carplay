@@ -1,22 +1,19 @@
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
 import { ExtraConfig } from '../main/Globals';
 
-// Typ for Callback function (Events)
-export type ApiCallback<T = any> = (event: IpcRendererEvent, ...args: T[]) => void;
+type ApiCallback<T = any> = (event: IpcRendererEvent, ...args: T[]) => void;
 
-// USB-Event-Handling with Queue
 let usbEventQueue: [IpcRendererEvent, ...any[]][] = [];
-let usbEventHandler: ApiCallback<any> | null = null;
+let usbEventHandlers: ApiCallback<any>[] = [];
 
 ipcRenderer.on('usb-event', (event, ...args) => {
-  if (usbEventHandler) {
-    usbEventHandler(event, ...args);
+  if (usbEventHandlers.length) {
+    usbEventHandlers.forEach(h => h(event, ...args));
   } else {
     usbEventQueue.push([event, ...args]);
   }
 });
 
-// VIDEO/AUDIO Chunk-Handling with Queue
 type ChunkHandler = (payload: any) => void;
 
 let videoChunkQueue: any[] = [];
@@ -43,17 +40,14 @@ ipcRenderer.on('carplay-audio-chunk', (_event, payload) => {
   }
 });
 
-
-// API for window.carplay
 const api = {
   quit: () => ipcRenderer.invoke('quit'),
 
   onUSBResetStatus: (callback: ApiCallback<any>) => {
-      ipcRenderer.on('usb-reset-start', callback);
-      ipcRenderer.on('usb-reset-done', callback);
-    },
+    ipcRenderer.on('usb-reset-start', callback);
+    ipcRenderer.on('usb-reset-done', callback);
+  },
 
-  // USB
   usb: {
     forceReset: () => ipcRenderer.invoke('usb-force-reset'),
     detectDongle: () => ipcRenderer.invoke('usb-detect-dongle'),
@@ -61,20 +55,18 @@ const api = {
     getLastEvent: () => ipcRenderer.invoke('usb-last-event'),
     getSysdefaultPrettyName: () => ipcRenderer.invoke('get-sysdefault-mic-label'),
     listenForEvents: (callback: ApiCallback<any>) => {
-      usbEventHandler = callback;
+      usbEventHandlers.push(callback);
       usbEventQueue.forEach(([evt, ...args]) => callback(evt, ...args));
       usbEventQueue = [];
     }
   },
 
-  // Settings
   settings: {
     get: () => ipcRenderer.invoke('getSettings'),
     save: (settings: ExtraConfig) => ipcRenderer.invoke('save-settings', settings),
     onUpdate: (callback: ApiCallback<ExtraConfig>) => ipcRenderer.on('settings', callback),
   },
 
-  // CarPlay-IPC
   ipc: {
     start: () => ipcRenderer.invoke('carplay-start'),
     stop: () => ipcRenderer.invoke('carplay-stop'),
@@ -86,16 +78,12 @@ const api = {
 
     onVideoChunk: (handler: ChunkHandler) => {
       videoChunkHandler = handler;
-      videoChunkQueue.forEach(chunk => {
-        handler(chunk);
-      });
+      videoChunkQueue.forEach(chunk => handler(chunk));
       videoChunkQueue = [];
     },
     onAudioChunk: (handler: ChunkHandler) => {
       audioChunkHandler = handler;
-      audioChunkQueue.forEach(chunk => {
-        handler(chunk);
-      });
+      audioChunkQueue.forEach(chunk => handler(chunk));
       audioChunkQueue = [];
     },
   },
