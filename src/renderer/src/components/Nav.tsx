@@ -14,15 +14,15 @@ import { ExtraConfig } from '../../../main/Globals'
 
 interface NavProps {
   settings: ExtraConfig | null
-  receivingVideo?: boolean; 
 }
 
 export default function Nav({ settings }: NavProps) {
   const theme = useTheme()
   const { pathname } = useLocation()
 
-  const isDongleConnected = useStatusStore((s) => s.isDongleConnected)
-  const isStreaming = useStatusStore((s) => s.isStreaming)
+  const isDongleConnected = useStatusStore(s => s.isDongleConnected)
+  const isStreaming = useStatusStore(s => s.isStreaming)
+  const cameraFound = useStatusStore(s => s.cameraFound)
 
   if (isStreaming && pathname === '/') {
     return null
@@ -50,7 +50,7 @@ export default function Nav({ settings }: NavProps) {
   }
 
   const quit = () => {
-    window.carplay.quit().catch((err: any) => console.error('Quit failed:', err))
+    window.carplay.quit().catch(err => console.error('Quit failed:', err))
   }
 
   return (
@@ -65,16 +65,23 @@ export default function Nav({ settings }: NavProps) {
         icon={icon}
         component={Link}
         to="/"
-        sx={{
-          '& svg': {
-            color,
-          },
-        }}
+        sx={{ '& svg': { color } }}
       />
       <Tab icon={<TuneIcon />} component={Link} to="/settings" />
       <Tab icon={<HelpCenterIcon />} component={Link} to="/info" />
       {settings?.camera && (
-        <Tab icon={<CameraIcon />} component={Link} to="/camera" />
+        <Tab
+          icon={<CameraIcon />}
+          component={Link}
+          to="/camera"
+          sx={{
+            '& svg': {
+              color: cameraFound
+                ? theme.palette.common.white
+                : theme.palette.text.disabled
+            }
+          }}
+        />
       )}
       <Tab icon={<CloseIcon />} onClick={quit} />
     </Tabs>

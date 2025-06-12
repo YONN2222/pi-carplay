@@ -8,8 +8,8 @@ const URL = 'http://localhost:4000'
 const socket = io(URL, {
   transports: ['websocket'],
   reconnection: true,
-  reconnectionAttempts: 5,        
-  reconnectionDelay: 2000
+  reconnectionAttempts: 5,
+  reconnectionDelay: 2000,
 })
 
 socket.on('connect_error', (err) => {
@@ -128,7 +128,9 @@ export interface StatusStore {
   // Dongle- und Streaming-Status
   isDongleConnected: boolean
   isStreaming: boolean
+  cameraFound: boolean
 
+  setCameraFound: (found: boolean) => void
   setDongleConnected: (connected: boolean) => void
   setStreaming: (streaming: boolean) => void
   setReverse: (reverse: boolean) => void
@@ -138,10 +140,11 @@ export interface StatusStore {
 export const useStatusStore = create<StatusStore>((set) => ({
   reverse: false,
   lights: false,
-
   isDongleConnected: false,
   isStreaming: false,
+  cameraFound: false,
 
+  setCameraFound: (found) => set({ cameraFound: found }),
   setDongleConnected: (connected) => set({ isDongleConnected: connected }),
   setStreaming: (streaming) => set({ isStreaming: streaming }),
   setReverse: (reverse) => set({ reverse }),
@@ -155,4 +158,14 @@ socket.on('settings', (settings: ExtraConfig) => {
 
 socket.on('reverse', (reverse: boolean) => {
   useStatusStore.setState({ reverse })
+})
+socket.on('dongle-status', (connected: boolean) => {
+  useStatusStore.setState({ isDongleConnected: connected })
+})
+socket.on('stream-status', (streaming: boolean) => {
+  useStatusStore.setState({ isStreaming: streaming })
+})
+// Optional: falls der Server Kamerastatus sendet
+socket.on('camera-found', (found: boolean) => {
+  useStatusStore.setState({ cameraFound: found })
 })
