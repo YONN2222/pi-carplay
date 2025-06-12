@@ -53,8 +53,8 @@ jobs:
 
       - name: Clean & install dependencies
         run: |
-          rm -rf node_modules package-lock.json
-          npm install
+          rm -rf node_modules
+          npm ci --prefer-offline --no-audit --progress=false
 
       - name: Rebuild native modules for Electron
         run: npx electron-rebuild -f
@@ -105,7 +105,7 @@ jobs:
             apt-get install -y build-essential python3 python3-dev libusb-1.0-0-dev libudev-dev pkg-config fuse libfuse2 libusb-1.0-0 libudev1
             echo "==> Waiting for file system to settle (QEMU workaround)..."
             sleep 5
-            npm install --unsafe-perm --no-audit --loglevel=verbose
+            npm ci --prefer-offline --no-audit --progress=false
             npx electron-rebuild -f
             npm run typecheck
             npm run build
@@ -149,8 +149,8 @@ jobs:
 
       - name: Clean & install dependencies
         run: |
-          rm -rf node_modules package-lock.json
-          npm install
+          rm -rf node_modules
+          npm ci --prefer-offline --no-audit --progress=false
 
       - name: Rebuild native modules for Electron
         run: npx electron-rebuild -f
