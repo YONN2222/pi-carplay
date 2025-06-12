@@ -75,11 +75,16 @@ const Settings: React.FC<SettingsProps> = ({ settings }) => {
     const updated = { ...activeSettings, [key]: value }
     setActiveSettings(updated)
 
-    if (['audioVolume','navVolume','kiosk','nightMode'].includes(key)) {
+    if (['audioVolume', 'navVolume'].includes(key)) {
       debouncedSave(updated)
+
+    } else if (['kiosk', 'nightMode'].includes(key)) {
+      saveSettings(updated)
+
     } else if (requiresRestartParams.includes(key)) {
       const pending = requiresRestartParams.some(p => updated[p] !== settings[p])
       setHasChanges(pending)
+
     } else {
       saveSettings(updated)
     }
