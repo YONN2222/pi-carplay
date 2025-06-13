@@ -7,6 +7,16 @@ While it started as a fork of react-carplay, it has since evolved into a standal
 
 > **Requirements:** A Carlinkit **CPC200-CCPA** (wireless & wired) or **CPC200-CCPW** (wired only) adapter.
 
+<p align="center">
+  <!-- Release -->
+  <img alt="Release" src="https://img.shields.io/github/v/release/f-io/pi-carplay?label=release"> |
+  <!-- main -->
+  <img alt="TS main"   src="https://github.com/f-io/pi-carplay/actions/workflows/typecheck.yml/badge.svg?branch=main&label=TS%20main">
+  <img alt="Build main" src="https://github.com/f-io/pi-carplay/actions/workflows/build.yml/badge.svg?branch=main&label=Build%20main"> |
+  <!-- dev -->
+  <img alt="TS dev"   src="https://github.com/f-io/pi-carplay/actions/workflows/typecheck.yml/badge.svg?branch=dev&label=TS%20dev">
+  <img alt="Build dev" src="https://github.com/f-io/pi-carplay/actions/workflows/build.yml/badge.svg?branch=dev&label=Build%20dev">
+</p>
 
 ## 📦 Installation
 
@@ -39,7 +49,6 @@ The `setup-pi.sh` script will:
        alt="Info"
        width="45%" />
 </p>
-
 
 ## 📦 Build Environment
 
@@ -75,7 +84,9 @@ git clone --branch main --single-branch https://github.com/f-io/pi-carplay.git \
   && npm run build:armLinux
 ```
 
-### 🍎 Mac Requirements (experimental, ARM only)
+---
+
+### 🍎 Mac ( ARM only )
 For microphone support, install sox via Homebrew:
 ```bash
 brew install sox
