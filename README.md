@@ -9,14 +9,17 @@ While it started as a fork of react-carplay, it has since evolved into a standal
 
 <p align="center">
   <!-- Release -->
-  <img alt="Release" src="https://img.shields.io/github/v/release/f-io/pi-carplay?label=release"> |
-  <!-- main -->
-  <img alt="TS main"   src="https://github.com/f-io/pi-carplay/actions/workflows/typecheck.yml/badge.svg?branch=main&label=TS%20main">
-  <img alt="Build main" src="https://github.com/f-io/pi-carplay/actions/workflows/build.yml/badge.svg?branch=main&label=Build%20main"> |
-  <!-- dev -->
-  <img alt="TS dev"   src="https://github.com/f-io/pi-carplay/actions/workflows/typecheck.yml/badge.svg?branch=dev&label=TS%20dev">
-  <img alt="Build dev" src="https://github.com/f-io/pi-carplay/actions/workflows/build.yml/badge.svg?branch=dev&label=Build%20dev">
+  <img alt="Release" src="https://img.shields.io/github/v/release/f-io/pi-carplay?label=release"> &nbsp;
+  <!-- MAIN -->
+  <img alt="TS Main" src="https://img.shields.io/github/actions/workflow/status/f-io/pi-carplay/typecheck.yml?branch=main&label=TS%20main&style=flat">
+  <img alt="Build Main" src="https://img.shields.io/github/actions/workflow/status/f-io/pi-carplay/build.yml?branch=main&label=build%20main&style=flat"> &nbsp;&nbsp; &nbsp;&nbsp;
+  <!-- DEV -->
+  <img alt="Dev" src="https://img.shields.io/github/package-json/v/f-io/pi-carplay?filename=package.json&branch=dev&label=dev%20version&color=blue&style=flat"> &nbsp;
+  <!-- DEV -->
+  <img alt="TS Dev" src="https://img.shields.io/github/actions/workflow/status/f-io/pi-carplay/typecheck.yml?branch=dev&label=TS%20dev&style=flat">
+  <img alt="Build Dev" src="https://img.shields.io/github/actions/workflow/status/f-io/pi-carplay/build.yml?branch=dev&label=build%20dev&style=flat">
 </p>
+
 
 ## 📦 Installation
 

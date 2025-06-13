@@ -4,25 +4,33 @@ on:
   workflow_dispatch:
     inputs:
       build_run_id:
-        description: 'ID of successful build run (leave empty = latest on main)'
+        description: "ID of successful build run (leave empty = latest on main)"
         required: false
       draft:
-        description: 'Create as draft?'
+        description: "Create as draft?"
         type: boolean
         default: true
 
 jobs:
   create_release:
     runs-on: ubuntu-latest
-    permissions: { contents: write }
+    permissions: { contents: write, actions: read }
 
     steps:
-    # find build ID
     - name: Pick build run ID
       id: pick
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        REPO:     ${{ github.repository }}
       run: |
         if [[ -z "${{ github.event.inputs.build_run_id }}" ]]; then
-          RUN=$(gh run list -w build -b main -s success -L 1 --json databaseId -q '.[0].databaseId')
+          RUN=$(gh run list --repo "$REPO" \
+                             --workflow build.yml \
+                             -b main \
+                             -s success \
+                             -L 1 \
+                             --json databaseId \
+                             -q '.[0].databaseId')
         else
           RUN="${{ github.event.inputs.build_run_id }}"
         fi
@@ -31,39 +39,37 @@ jobs:
           exit 1
         fi
         echo "run_id=$RUN" >> "$GITHUB_OUTPUT"
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    # read commit-SHA
-    - name: Get commit SHA of build run
+    - name: Get commit SHA
       id: sha
-      run: |
-        SHA=$(gh run view "${{ steps.pick.outputs.run_id }}" --json headSha -q .headSha)
-        echo "sha=$SHA" >> "$GITHUB_OUTPUT"
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        REPO:     ${{ github.repository }}
+      run: |
+        SHA=$(gh run view "${{ steps.pick.outputs.run_id }}" \
+               --repo "$REPO" \
+               --json headSha \
+               -q .headSha)
+        echo "sha=$SHA" >> "$GITHUB_OUTPUT"
 
-    # check out commit
     - uses: actions/checkout@v4
       with:
         ref: ${{ steps.sha.outputs.sha }}
         fetch-depth: 1
 
-    # Read version from package.json
     - name: Read version
       id: ver
       run: |
         VERSION=$(grep -oP '"version"\s*:\s*"\K[^"]+' package.json)
         echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-    # Download Artefacts
-    - name: Download build artifacts
+    - name: Download artifacts
       uses: actions/download-artifact@v4
       with:
         run-id: ${{ steps.pick.outputs.run_id }}
         path: release-assets
+        github-token: ${{ secrets.GITHUB_TOKEN }} 
 
-    # Draft-Release
     - name: Create GitHub release
       uses: softprops/action-gh-release@v2
       with:
