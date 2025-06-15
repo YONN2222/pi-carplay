@@ -13,10 +13,13 @@ on:
         required: true
         default: 'main'
 
+permissions:
+  contents: write
+
 jobs:
   build:
     name: Build ${{ matrix.artifact_ext }} (${{ matrix.platform }}) on ${{ github.event.inputs.branch || github.event.workflow_run.head_branch || github.ref_name }}
-    if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') }}
+    if: ${{ (github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')) && github.actor != 'github-actions' }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -96,6 +99,38 @@ jobs:
           path: |
             dist/*${{ matrix.artifact_ext == 'dmg' && 'arm64.dmg' || (matrix.artifact_ext == 'AppImage' && (matrix.platform == 'arm64' && 'arm64.AppImage' || 'x86_64.AppImage')) }}
           retention-days: 10
+
+      - name: Write version badge JSON
+        if: matrix.platform == 'x86_64'
+        run: |
+          BRANCH_NAME="${{ github.event.inputs.branch || github.event.workflow_run.head_branch || github.ref_name }}"
+          mkdir -p .github/badges
+          echo "{\"schemaVersion\":1,\"label\":\"${BRANCH_NAME}\",\"message\":\"v${{ steps.pkg.outputs.version }}\",\"color\":\"lightgrey\"}" > .github/badges/${BRANCH_NAME}-version.json
+
+      - name: Push version badge to version branch
+        if: matrix.platform == 'x86_64'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BRANCH_NAME="${{ github.event.inputs.branch || github.event.workflow_run.head_branch || github.ref_name }}"
+          VERSION="${{ steps.pkg.outputs.version }}"
+
+          mkdir temp-badges
+          cd temp-badges
+
+          git clone --depth=1 --branch version "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}" .
+          
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+          mkdir -p .github/badges
+          echo "{\"schemaVersion\":1,\"label\":\"${BRANCH_NAME}\",\"message\":\"v${VERSION}\",\"color\":\"lightgrey\"}" > .github/badges/${BRANCH_NAME}-version.json
+
+          git add .github/badges/${BRANCH_NAME}-version.json
+          git commit -m "Update ${BRANCH_NAME} version badge to ${VERSION}" || echo "No changes"
+          git push
+          cd ..
+          rm -rf temp-badges
 
   cleanup_old_runs:
     if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') }}
