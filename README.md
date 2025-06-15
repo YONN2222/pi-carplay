@@ -14,14 +14,12 @@ While it started as a fork of react-carplay, it has since evolved into a standal
   <img alt="TS Main" src="https://img.shields.io/github/actions/workflow/status/f-io/pi-carplay/typecheck.yml?branch=main&label=TS%20main&style=flat">
   <img alt="Build Main" src="https://img.shields.io/github/actions/workflow/status/f-io/pi-carplay/build.yml?branch=main&label=build%20main&style=flat"> &nbsp;&nbsp; &nbsp;&nbsp;
   <!-- DEV -->
-  <img alt="Dev" src="https://img.shields.io/github/package-json/v/f-io/pi-carplay?filename=package.json&branch=dev&label=dev%20version&color=blue&style=flat"> &nbsp;
-  <!-- DEV -->
   <img alt="TS Dev" src="https://img.shields.io/github/actions/workflow/status/f-io/pi-carplay/typecheck.yml?branch=dev&label=TS%20dev&style=flat">
   <img alt="Build Dev" src="https://img.shields.io/github/actions/workflow/status/f-io/pi-carplay/build.yml?branch=dev&label=build%20dev&style=flat">
 </p>
 
 
-## 📦 Installation
+## Installation (Raspberry Pi OS)
 
 ```bash
 git clone https://github.com/f-io/pi-carplay.git
@@ -36,7 +34,9 @@ The `setup-pi.sh` script will:
 3. Download the latest AppImage
 4. Create an autostart entry
 
-## 📷 Images
+*Do not run this script on other Linux distributions.*
+
+## Images
 <p align="center">
   <img src="documentation/images/carplay.png"
        alt="CarPlay"
@@ -53,7 +53,7 @@ The `setup-pi.sh` script will:
        width="45%" />
 </p>
 
-## 📦 Build Environment
+## Build Environment
 
 ```bash
 node -v
@@ -65,7 +65,7 @@ npm -v
 
 ---
 
-### 🧱 System Requirements
+### System Requirements (build)
 
 Make sure the following packages and tools are installed on your system before building:
 
@@ -77,7 +77,7 @@ Make sure the following packages and tools are installed on your system before b
 
 ---
 
-### 🔨 Clone & Build
+### Clone & Build
 
 ```bash
 git clone --branch main --single-branch https://github.com/f-io/pi-carplay.git \
@@ -89,27 +89,42 @@ git clone --branch main --single-branch https://github.com/f-io/pi-carplay.git \
 
 ---
 
-### 🍎 Mac ( ARM only )
-For microphone support, install sox via Homebrew:
+### Linux (x86_64)
+
+This AppImage has been tested on Debian Trixie (13). No additional software is required — just download the x86_64.AppImage and make it executable.
+
 ```bash
-brew install sox
+chmod +x pi-carplay-*-x86_64.AppImage
 ```
-If the app does not start or macOS reports it as “damaged,” remove the quarantine attribute:
+
+---
+
+### Mac (arm64)
+
+This step is required for all non-Apple-signed apps.
+
 ```bash
 xattr -cr /Applications/pi-carplay.app
 ```
 
-## 🔗 Links
+For microphone support, please install Sound eXchange (SoX) via brew.
+```bash
+brew install sox
+```
+
+---
+
+## Links
 
 * **Repository & Issue Tracker:** [f-io/pi-carplay](https://github.com/f-io/pi-carplay)
 * **Inspired by:** [react-carplay](https://github.com/rhysmorgan134/react-carplay)
 
-## ⚠️ Disclaimer
+## Disclaimer
 
 ** _Apple and CarPlay are trademarks of Apple Inc. This project is not affiliated with or endorsed by Apple in any way. All trademarks are the property of their respective owners._
 
 
-## 📝 License
+## License
 
 This project is licensed under the MIT License.
 
@@ -121,5 +136,3 @@ This project is licensed under the MIT License.
     <img src="https://cdn.buymeacoffee.com/buttons/default-orange.png" alt="Buy Me A Coffee" height="41" width="174">
   </a>
 </p>
-
-
