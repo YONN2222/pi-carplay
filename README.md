@@ -1,12 +1,3 @@
-# pi‑carplay
-
-pi‑carplay brings Apple CarPlay functionality to the Raspberry Pi.
-While it started as a fork of react-carplay, it has since evolved into a standalone implementation with a different focus.
-
-🎯 Optimized for embedded Raspberry Pi setups and ultra-low-resolution displays
-
-> **Requirements:** A Carlinkit **CPC200-CCPA** (wireless & wired) or **CPC200-CCPW** (wired only) adapter.
-
 <p align="center">
   <!-- Release -->
   <img alt="Release" src="https://img.shields.io/github/v/release/f-io/pi-carplay?label=release"> &nbsp;
@@ -20,21 +11,30 @@ While it started as a fork of react-carplay, it has since evolved into a standal
   <img alt="Build Dev" src="https://img.shields.io/github/actions/workflow/status/f-io/pi-carplay/build.yml?branch=dev&label=build%20dev&style=flat">
 </p>
 
+# pi‑carplay
+
+pi‑carplay brings Apple CarPlay functionality to the Raspberry Pi.
+While it started as a fork of react-carplay, it has since evolved into a standalone implementation with a different focus.
+
+🎯 Optimized for embedded Raspberry Pi setups and ultra-low-resolution displays
+
+> **Requirements:** A Carlinkit **CPC200-CCPA** (wireless & wired) or **CPC200-CCPW** (wired only) adapter.
 
 ## Installation (Raspberry Pi OS)
 
 ```bash
-git clone https://github.com/f-io/pi-carplay.git
-cd pi-carplay
+curl -LO https://raw.githubusercontent.com/f-io/pi-carplay/main/setup-pi.sh
+sudo chmod +x setup-pi.sh
 ./setup-pi.sh
 ```
 
-The `setup-pi.sh` script will:
+The `setup-pi.sh` script performs the following tasks:
 
-1. Install required dependencies
-2. Configure udev rules
-3. Download the latest AppImage
-4. Create an autostart entry
+1. check for required tools: curl and xdg-user-dir
+2. configures udev rules to ensure the proper access rights for the CarPlay dongle
+3. downloads the latest AppImage
+4. creates an autostart entry, so the application will launch automatically on boot
+5. creates a desktop shortcut for easy access to the application
 
 *Do not run this script on other Linux distributions.*
 

@@ -13,7 +13,7 @@ APPIMAGE_DIR="$(dirname "$APPIMAGE_PATH")"
 echo "→ Creating target directory: $APPIMAGE_DIR"
 mkdir -p "$APPIMAGE_DIR"
 
-# 1) Ensure required tools are installed
+# Ensure required tools are installed
 echo "→ Checking for required tools: curl, xdg-user-dir"
 for tool in curl xdg-user-dir; do
   if ! command -v "$tool" >/dev/null 2>&1; then
@@ -25,7 +25,7 @@ for tool in curl xdg-user-dir; do
   fi
 done
 
-# 2) Create udev rule for Carlinkit dongle
+# Create udev rule for Carlinkit dongle
 echo "→ Writing udev rule"
 UDEV_FILE="/etc/udev/rules.d/52-carplay.rules"
 sudo tee "$UDEV_FILE" > /dev/null <<EOF
@@ -35,39 +35,28 @@ echo "   Reloading udev rules"
 sudo udevadm control --reload-rules
 sudo udevadm trigger
 
-# 3) Install runtime dependencies for node-usb + FUSE
-echo "→ Installing runtime dependencies"
-sudo apt-get update
-pkgs=(fuse libfuse2 libusb-1.0-0 libudev1)
-for pkg in "${pkgs[@]}"; do
-  printf "   %-15s " "$pkg"
-  if dpkg-query -W --showformat='${Status}\n' "$pkg" 2>/dev/null | grep -q "install ok installed"; then
-    echo "found"
-  else
-    echo "missing → installing"
-    sudo apt-get --yes install "$pkg"
-  fi
-done
-echo "   All runtime dependencies are ready."
-
 # ICON INSTALLATION
-ICON_SRC="./assets/icons/linux/pi-caraplay.png"
+ICON_URL="https://raw.githubusercontent.com/f-io/pi-carplay/dev/assets/icons/linux/pi-carplay.png"
 ICON_DEST="$USER_HOME/.local/share/icons/pi-carplay.png"
 
 if [ -d "$USER_HOME/.local/share" ]; then
   echo "→ Installing icon to $ICON_DEST"
   mkdir -p "$(dirname "$ICON_DEST")"
-  if [ -f "$ICON_SRC" ]; then
-    cp "$ICON_SRC" "$ICON_DEST"
-    echo "   App Icon copied."
+  
+  # Download icon from GitHub
+  echo "   Downloading icon from $ICON_URL..."
+  curl -L "$ICON_URL" -o "$ICON_DEST"
+  
+  if [ $? -eq 0 ]; then
+    echo "   App icon downloaded and installed successfully."
   else
-    echo "   Icon source $ICON_SRC not found! Skipping icon install."
+    echo "   Failed to download icon from $ICON_URL. Skipping icon install."
   fi
 else
   echo "   No ~/.local/share directory, skipping icon installation."
 fi
 
-# 4) Fetch latest ARM64 AppImage from GitHub
+# Fetch latest ARM64 AppImage from GitHub
 echo "→ Fetching latest pi-carplay release"
 latest_url=$(curl -s https://api.github.com/repos/f-io/pi-carplay/releases/latest \
   | grep "browser_download_url" \
@@ -86,11 +75,11 @@ if ! curl -L "$latest_url" --output "$APPIMAGE_PATH"; then
 fi
 echo "   Download complete: $APPIMAGE_PATH"
 
-# 5) Mark AppImage as executable
+# Mark AppImage as executable
 echo "→ Setting executable flag"
 chmod +x "$APPIMAGE_PATH"
 
-# 6) Create per-user autostart entry
+# Create per-user autostart entry
 echo "→ Creating autostart entry"
 AUTOSTART_DIR="$USER_HOME/.config/autostart"
 mkdir -p "$AUTOSTART_DIR"
@@ -105,7 +94,7 @@ Categories=AudioVideo;
 EOF
 echo "Autostart entry at $AUTOSTART_DIR/pi-carplay.desktop"
 
-# 7) Create Desktop shortcut
+# Create Desktop shortcut
 echo "→ Creating desktop shortcut"
 if command -v xdg-user-dir >/dev/null 2>&1; then
   DESKTOP_DIR=$(xdg-user-dir DESKTOP)
