@@ -1,11 +1,10 @@
 name: build
 
-# Trigger
 on:
   workflow_run:
-    workflows: ["typecheck"]     
-    branches:   [main, dev]
-    types:      [completed]
+    workflows: ["typecheck"]
+    branches: [main, dev]
+    types: [completed]
 
   workflow_dispatch:
     inputs:
@@ -13,32 +12,33 @@ on:
         description: 'Branch to build'
         required: true
         default: 'main'
-      create_release:
-        description: 'Create draft GitHub release'
-        required: false
-        type: boolean
-        default: false
 
-# ────────────────────────────────────────────────────────────────────────────────
 jobs:
-
-# build_x86_64
-  build_x86_64:
-    if: ${{ github.event_name == 'workflow_dispatch' ||
-          (github.event_name == 'workflow_run' &&
-          github.event.workflow_run.conclusion == 'success') }}
-    name: Build AppImage (x86_64)
-    runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.pkg.outputs.version }}
+  build:
+    name: Build ${{ matrix.artifact_ext }} (${{ matrix.platform }}) on ${{ github.event.inputs.branch || github.event.workflow_run.head_branch || github.ref_name }}
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - platform: x86_64
+            os: ubuntu-latest
+            arch: native
+            artifact_ext: AppImage
+          - platform: arm64
+            os: ubuntu-latest
+            arch: emulated
+            artifact_ext: AppImage
+          - platform: darwin
+            os: macos-latest
+            arch: native
+            artifact_ext: dmg
 
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ github.event_name == 'workflow_dispatch'
-                    && github.event.inputs.branch
-                    || github.event.workflow_run.head_sha }}
+          ref: ${{ github.event.inputs.branch && format('refs/heads/{0}', github.event.inputs.branch) || format('refs/heads/{0}', github.event.workflow_run.head_branch) }}
 
       - name: Read version from package.json
         id: pkg
@@ -46,78 +46,31 @@ jobs:
           VERSION=$(node -p "require('./package.json').version")
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Ensure system packages
+      - name: Build for x86_64 (native Ubuntu)
+        if: matrix.platform == 'x86_64'
         run: |
           sudo apt-get update
-          build_pkgs=(build-essential python3 python3-dev libusb-1.0-0-dev libudev-dev pkg-config)
-          runtime_pkgs=(fuse libfuse2 libusb-1.0-0 libudev1)
-          for pkg in "${build_pkgs[@]}";   do dpkg-query -W "$pkg" 2>/dev/null | grep -q "install ok" || sudo apt-get install -y "$pkg"; done
-          for pkg in "${runtime_pkgs[@]}"; do dpkg-query -W "$pkg" 2>/dev/null | grep -q "install ok" || sudo apt-get install -y "$pkg"; done
+          sudo apt-get install -y build-essential python3 python3-dev libusb-1.0-0-dev libudev-dev pkg-config libusb-1.0-0 libudev1
+          npm run install:clean
+          npx electron-rebuild -f
+          npm run typecheck
+          npm run build
+          npm run build:linux
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22.x
-          cache: npm
-
-      - name: Clean & install dependencies
-        run: |
-          rm -rf node_modules package-lock.json
-          npm install
-
-      - run: npx electron-rebuild -f
-        name: Rebuild native modules for Electron
-
-      - run: npm run typecheck
-        name: Type-Check (safety net)
-
-      - run: npm run build
-        name: Build Renderer & Main
-
-      - run: npm run build:linux
-        name: Create AppImage (x86_64)
-
-      - uses: actions/upload-artifact@v4
-        name: Upload x86_64 AppImage
-        with:
-          name: pi-carplay-${{ steps.pkg.outputs.version }}-x86_64.AppImage
-          path: dist/*-x86_64.AppImage
-          retention-days: 10
-
-# build_arm64
-  build_arm64:
-    if: ${{ github.event_name == 'workflow_dispatch' ||
-          (github.event_name == 'workflow_run' &&
-          github.event.workflow_run.conclusion == 'success') }}
-    name: Build AppImage (arm64)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          ref: ${{ github.event_name == 'workflow_dispatch'
-                    && github.event.inputs.branch
-                    || github.event.workflow_run.head_sha }}
-
-      - name: Read version from package.json
-        id: pkg
-        run: |
-          VERSION=$(node -p "require('./package.json').version")
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-
-      - name: Run on ARM64
+      - name: Build for ARM64 (emulated)
+        if: matrix.platform == 'arm64'
         uses: uraimo/run-on-arch-action@v2
         with:
           arch: aarch64
           distro: ubuntu22.04
           run: |
             apt-get update
-            apt-get install -y curl
+            apt-get install -y curl git
             curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
-            apt-get install -y nodejs
-            apt-get install -y build-essential python3 python3-dev libusb-1.0-0-dev libudev-dev pkg-config fuse libfuse2 libusb-1.0-0 libudev1
+            apt-get install -y nodejs build-essential python3 python3-dev libusb-1.0-0-dev libudev-dev pkg-config libusb-1.0-0 libudev1
             echo "==> Waiting for file system to settle (QEMU workaround)..."
             sleep 5
-            npm install --unsafe-perm --no-audit --loglevel=verbose
+            npm run install:clean
             npx electron-rebuild -f
             npm run typecheck
             npm run build
@@ -125,108 +78,32 @@ jobs:
             mkdir -p /github/workspace/dist/
             cp dist/*-arm64.AppImage /github/workspace/dist/
 
-      - uses: actions/upload-artifact@v4
-        name: Upload ARM64 AppImage
-        with:
-          name: pi-carplay-${{ steps.pkg.outputs.version }}-arm64.AppImage
-          path: dist/*-arm64.AppImage
-          retention-days: 10
-
-# build_mac
-  build_mac:
-    if: ${{ github.event_name == 'workflow_dispatch' ||
-          (github.event_name == 'workflow_run' &&
-          github.event.workflow_run.conclusion == 'success') }}
-    name: Build macOS (arm64)
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          ref: ${{ github.event_name == 'workflow_dispatch'
-                    && github.event.inputs.branch
-                    || github.event.workflow_run.head_sha }}
-
-      - name: Read version from package.json
-        id: pkg
-        run: |
-          VERSION=$(node -p "require('./package.json').version")
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-
-      - name: Ensure system packages
+      - name: Build for macOS (native)
+        if: matrix.platform == 'darwin'
         run: |
           brew update
-          for pkg in libusb pkg-config; do
-            brew list --versions "$pkg" >/dev/null && brew upgrade "$pkg" || brew install "$pkg"
-          done
+          brew install libusb pkg-config
+          npm run install:clean
+          npx electron-rebuild -f
+          npm run typecheck
+          npm run build
+          npm run build:mac
 
-      - uses: actions/setup-node@v4
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
         with:
-          node-version: 22.x
-          cache: npm
-
-      - name: Clean & install dependencies
-        run: |
-          rm -rf node_modules package-lock.json
-          npm install
-
-      - run: npx electron-rebuild -f
-        name: Rebuild native modules
-
-      - run: npm run typecheck
-        name: Type-Check (safety net)
-
-      - run: npm run build
-        name: Build Renderer & Main
-
-      - run: npm run build:mac
-        name: Create macOS App
-
-      - uses: actions/upload-artifact@v4
-        name: Upload macOS App
-        with:
-          name: pi-carplay-${{ steps.pkg.outputs.version }}-darwin-arm64.dmg
-          path: dist/*arm64.dmg
+          name: pi-carplay-${{ steps.pkg.outputs.version }}-${{ matrix.platform }}.${{ matrix.artifact_ext }}
+          path: |
+            dist/*${{ matrix.artifact_ext == 'dmg' && 'arm64.dmg' || (matrix.artifact_ext == 'AppImage' && (matrix.platform == 'arm64' && 'arm64.AppImage' || 'x86_64.AppImage')) }}
           retention-days: 10
 
-# draft_release
-  draft_release:
-    if: >
-      github.event_name == 'workflow_dispatch' &&
-      github.event.inputs.create_release == 'true'
-    needs: [build_x86_64, build_arm64, build_mac]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          path: release-assets
-
-      - run: ls -R release-assets
-
-      - name: Create draft release
-        uses: softprops/action-gh-release@v2
-        with:
-          draft: true
-          tag_name: v${{ needs.build_x86_64.outputs.version }}
-          name:     v${{ needs.build_x86_64.outputs.version }}
-          files: |
-            release-assets/**/*
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-
-# cleanup  (10 days, min. 5 Builds)
   cleanup_old_runs:
-    if: ${{ github.event_name == 'workflow_dispatch' ||
-            (github.event_name == 'workflow_run' &&
-             github.event.workflow_run.conclusion == 'success') }}
-    needs: [build_x86_64, build_arm64, build_mac]
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') }}
+    needs: [build]
     runs-on: ubuntu-latest
     steps:
       - uses: Mattraks/delete-workflow-runs@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          retain_days:      10
+          retain_days: 10
           keep_minimum_runs: 5
