@@ -84,8 +84,18 @@ jobs:
       - name: Build for macOS (native)
         if: matrix.platform == 'darwin'
         run: |
-          brew update
-          brew install libusb pkg-config
+          brew update >/dev/null
+          for pkg in libusb pkg-config; do
+            if ! brew list --versions "$pkg" >/dev/null; then
+              echo "Installing $pkg..."
+              brew install "$pkg" >/dev/null
+            elif brew outdated --quiet | grep -q "^$pkg\$"; then
+              echo "Upgrading $pkg..."
+              brew upgrade "$pkg" >/dev/null
+            else
+              echo "$pkg is up-to-date."
+            fi
+          done
           npm run install:clean
           npx electron-rebuild -f
           npm run typecheck
@@ -124,7 +134,7 @@ jobs:
           git config user.email "github-actions@github.com"
 
           mkdir -p .github/badges
-          echo "{\"schemaVersion\":1,\"label\":\"${BRANCH_NAME}\",\"message\":\"v${VERSION}\",\"color\":\"lightgrey\"}" > .github/badges/${BRANCH_NAME}-version.json
+          echo "{\"schemaVersion\":1,\"label\":\"${BRANCH_NAME}\",\"message\":\"v${VERSION}\",\"color\":\"lightblue\"}" > .github/badges/${BRANCH_NAME}-version.json
 
           git add .github/badges/${BRANCH_NAME}-version.json
           git commit -m "Update ${BRANCH_NAME} version badge to ${VERSION}" || echo "No changes"
@@ -132,7 +142,8 @@ jobs:
           cd ..
           rm -rf temp-badges
 
-  cleanup_old_runs:
+  cleanup:
+    name: "Garbage Collection"
     if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') }}
     needs: [build]
     runs-on: ubuntu-latest

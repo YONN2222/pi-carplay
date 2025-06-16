@@ -69,29 +69,72 @@ app.on('will-quit', () => usbService?.stop());
 
 // Protocol & Config
 protocol.registerSchemesAsPrivileged([
-  { scheme: 'app', privileges: { secure: true, standard: true, corsEnabled: true, supportFetchAPI: true, stream: true } }
+  {
+    scheme: 'app',
+    privileges: {
+      secure: true,
+      standard: true,
+      corsEnabled: true,
+      supportFetchAPI: true,
+      stream: true
+    }
+  }
 ]);
 
-const appPath   = app.getPath('userData');
+const appPath    = app.getPath('userData');
 const configPath = join(appPath, 'config.json');
 
 const DEFAULT_BINDINGS: KeyBindings = {
-  left: 'ArrowLeft', right: 'ArrowRight', selectDown: 'Space', back: 'Backspace',
-  down: 'ArrowDown', home: 'KeyH', play: 'KeyP', pause: 'KeyO', next: 'KeyM', prev: 'KeyN'
+  up: 'ArrowUp',
+  down: 'ArrowDown',
+  left: 'ArrowLeft',
+  right: 'ArrowRight',
+  selectUp: 'KeyB',
+  selectDown: 'Space',
+  back: 'Backspace',
+  home: 'KeyH',
+  play: 'KeyP',
+  pause: 'KeyO',
+  next: 'KeyM',
+  prev: 'KeyN'
 };
 
-const EXTRA_CONFIG: ExtraConfig = {
-  ...DEFAULT_CONFIG,
-  kiosk: true, camera: '', microphone: '', nightMode: true,
-  audioVolume: 1.0, navVolume: 0.5, bindings: DEFAULT_BINDINGS
-};
+function loadConfig(): ExtraConfig {
+  let fileConfig: Partial<ExtraConfig> = {};
+  if (existsSync(configPath)) {
+    fileConfig = JSON.parse(readFileSync(configPath, 'utf8'));
+  }
 
-if (!existsSync(configPath)) writeFileSync(configPath, JSON.stringify(EXTRA_CONFIG, null, 2));
-config = JSON.parse(readFileSync(configPath, 'utf8')) as ExtraConfig;
-if (Object.keys(config).sort().join(',') !== Object.keys(EXTRA_CONFIG).sort().join(',')) {
-  config = { ...EXTRA_CONFIG, ...config };
-  writeFileSync(configPath, JSON.stringify(config, null, 2));
+  const merged: ExtraConfig = {
+    ...DEFAULT_CONFIG,
+    kiosk: true,
+    camera: '',
+    microphone: '',
+    nightMode: true,
+    audioVolume: 1.0,
+    navVolume: 0.5,
+    bindings: { ...DEFAULT_BINDINGS },
+    ...fileConfig
+  } as ExtraConfig;
+
+  merged.bindings = {
+    ...DEFAULT_BINDINGS,
+    ...(fileConfig.bindings || {})
+  };
+
+  const needWrite =
+    !existsSync(configPath) ||
+    JSON.stringify(fileConfig) !== JSON.stringify(merged);
+
+  if (needWrite) {
+    writeFileSync(configPath, JSON.stringify(merged, null, 2));
+    console.log('[config] Written complete config.json with all defaults');
+  }
+
+  return merged;
 }
+
+config = loadConfig();
 
 // Window
 function createWindow(): void {

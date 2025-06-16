@@ -79,6 +79,10 @@ export class CarplayService {
             msg.command === AudioCommand.AudioSiriStart ||
             msg.command === AudioCommand.AudioPhonecallStart
           ) {
+            if (this.config.audioTransferMode) {
+              console.debug('[CarplayService] Skipping microphone start because audioTransferMode is enabled')
+              return
+            }
             if (!this._mic) {
               console.debug('[CarplayService] Initializing microphone')
               this._mic = new NodeMicrophone()
@@ -140,6 +144,8 @@ export class CarplayService {
     } catch {
       // fallback to DEFAULT_CONFIG
     }
+
+    console.debug('[CarplayService] audioTransferMode:', this.config.audioTransferMode)
 
     const device = usb.getDeviceList().find(
       d =>
