@@ -142,7 +142,8 @@ jobs:
           cd ..
           rm -rf temp-badges
 
-  cleanup_old_runs:
+  cleanup:
+    name: "Garbage Collection"
     if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') }}
     needs: [build]
     runs-on: ubuntu-latest
