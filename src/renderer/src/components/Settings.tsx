@@ -38,9 +38,7 @@ const Transition = React.forwardRef(function Transition(
 })
 
 const Settings: React.FC<SettingsProps> = ({ settings }) => {
-  if (!settings) {
-    return null
-  }
+  if (!settings) return null
 
   const [activeSettings, setActiveSettings] = useState<ExtraConfig>({
     ...settings,
@@ -60,15 +58,11 @@ const Settings: React.FC<SettingsProps> = ({ settings }) => {
   const setCameraFound = useStatusStore(s => s.setCameraFound)
   const theme = useTheme()
 
-  const debouncedSave = useMemo(
-    () => debounce((newSettings: ExtraConfig) => saveSettings(newSettings), 300),
-    [saveSettings]
-  )
+  const debouncedSave = useMemo(() => debounce((newSettings: ExtraConfig) => saveSettings(newSettings), 300), [saveSettings])
   useEffect(() => () => debouncedSave.cancel(), [debouncedSave])
 
   const requiresRestartParams: (keyof ExtraConfig)[] = [
-    'width','height','fps','dpi','format',
-    'mediaDelay','phoneWorkMode','wifiType','micType'
+    'width','height','fps','dpi','format','mediaDelay','phoneWorkMode','wifiType','micType','audioTransferMode'
   ]
 
   const settingsChange = (key: keyof ExtraConfig, value: any) => {
@@ -77,14 +71,11 @@ const Settings: React.FC<SettingsProps> = ({ settings }) => {
 
     if (['audioVolume', 'navVolume'].includes(key)) {
       debouncedSave(updated)
-
     } else if (['kiosk', 'nightMode'].includes(key)) {
       saveSettings(updated)
-
     } else if (requiresRestartParams.includes(key)) {
       const pending = requiresRestartParams.some(p => updated[p] !== settings[p])
       setHasChanges(pending)
-
     } else {
       saveSettings(updated)
     }
@@ -132,8 +123,7 @@ const Settings: React.FC<SettingsProps> = ({ settings }) => {
     const updateMic = async () => {
       try {
         const label = await window.carplay.usb.getSysdefaultPrettyName()
-        const final = label && !['sysdefault','null'].includes(label)
-          ? label : 'no device available'
+        const final = label && !['sysdefault','null'].includes(label) ? label : 'no device available'
         setMicLabel(final)
         if (!activeSettings.microphone && final !== 'no device available') {
           const upd = { ...activeSettings, microphone: 'sysdefault' }
@@ -152,33 +142,31 @@ const Settings: React.FC<SettingsProps> = ({ settings }) => {
   }, [])
 
   useEffect(() => {
-  const updateCameras = async () => {
-    try {
-      const devs = await navigator.mediaDevices.enumerateDevices()
-      const cams = devs.filter(d => d.kind === 'videoinput')
-      setCameras(cams)
-      setCameraFound(cams.length > 0)
+    const updateCameras = async () => {
+      try {
+        const devs = await navigator.mediaDevices.enumerateDevices()
+        const cams = devs.filter(d => d.kind === 'videoinput')
+        setCameras(cams)
+        setCameraFound(cams.length > 0)
 
-      setActiveSettings(prev => {
-        if (prev.camera || cams.length === 0) return prev
-        const updated = { ...prev, camera: cams[0].deviceId }
-        saveSettings(updated)
-        return updated
-      })
-    } catch (err) {
-      console.warn('[Settings] enumerateDevices failed', err)
+        setActiveSettings(prev => {
+          if (prev.camera || cams.length === 0) return prev
+          const updated = { ...prev, camera: cams[0].deviceId }
+          saveSettings(updated)
+          return updated
+        })
+      } catch (err) {
+        console.warn('[Settings] enumerateDevices failed', err)
+      }
     }
-  }
-
-  updateCameras()
-
-  const usbHandler = (_: any, data: { type: string }) => {
-    if (['attach', 'plugged', 'detach', 'unplugged'].includes(data.type)) {
-      updateCameras()
+    updateCameras()
+    const usbHandler = (_: any, data: { type: string }) => {
+      if (['attach', 'plugged', 'detach', 'unplugged'].includes(data.type)) {
+        updateCameras()
+      }
     }
-  }
-  window.carplay.usb.listenForEvents(usbHandler)
-}, [])
+    window.carplay.usb.listenForEvents(usbHandler)
+  }, [])
 
   const renderField = (label: string, key: keyof ExtraConfig, min?: number, max?: number) => (
     <Grid size={{ xs: 3 }} key={String(key)}>
@@ -250,7 +238,11 @@ const Settings: React.FC<SettingsProps> = ({ settings }) => {
 
           <Grid size={{xs:3}} sx={{minWidth:140,mx:2,display:'flex',justifyContent:'center'}}>
             <FormControl>
-              <FormLabel>&nbsp;</FormLabel><Stack direction="column" spacing={0.5}><FormControlLabel control={<Checkbox checked={activeSettings.kiosk} onChange={e=>settingsChange('kiosk',e.target.checked)}/>} label="KIOSK"/><FormControlLabel control={<Checkbox checked={activeSettings.nightMode} onChange={e=>settingsChange('nightMode',e.target.checked)}/>} label="DARK MODE"/></Stack>
+              <Stack direction="column" spacing={0.5}>
+                <FormControlLabel control={<Checkbox checked={activeSettings.kiosk} onChange={e=>settingsChange('kiosk',e.target.checked)}/>} label="KIOSK"/>
+                <FormControlLabel control={<Checkbox checked={activeSettings.nightMode} onChange={e=>settingsChange('nightMode',e.target.checked)}/>} label="DARK MODE"/>
+                <FormControlLabel control={<Checkbox checked={activeSettings.audioTransferMode} onChange={e=>settingsChange('audioTransferMode',e.target.checked)}/>} label="DISABLE AUDIO"/>
+              </Stack>
             </FormControl>
           </Grid>
 
@@ -266,7 +258,29 @@ const Settings: React.FC<SettingsProps> = ({ settings }) => {
         </Grid>
       </Box>
 
-      <Box position="sticky" bottom={0} bgcolor={theme.palette.background.default} display="flex" justifyContent="center" sx={{pt:1,pb:1,borderTop:'0px solid',borderColor:theme.palette.divider}}><Button variant="contained" color={hasChanges ? 'primary' : 'inherit'} onClick={hasChanges ? handleSave : undefined} disabled={!hasChanges || isResetting}>SAVE</Button><Button variant="outlined" onClick={()=>setOpenBindings(true)} sx={{ml:2}}>BINDINGS</Button></Box>
+      <Box
+        position="sticky"
+        bottom={0}
+        bgcolor="transparent"
+        display="flex"
+        justifyContent="center"
+        sx={{ pt: 1, pb: 1 }}
+      >
+        <Box
+          sx={{
+            backgroundColor: theme.palette.background.default,
+            px: 2,
+            py: 1,
+            borderRadius: 2,
+            boxShadow: theme.shadows[2],
+            display: 'flex',
+            gap: 2,
+          }}
+        >
+          <Button variant="contained" color={hasChanges ? 'primary' : 'inherit'} onClick={hasChanges ? handleSave : undefined} disabled={!hasChanges || isResetting}>SAVE</Button>
+          <Button variant="outlined" onClick={()=>setOpenBindings(true)}>BINDINGS</Button>
+        </Box>
+      </Box>
 
       {isResetting && <Box display="flex" justifyContent="center" sx={{mt:2}}><CircularProgress/></Box>}
 
