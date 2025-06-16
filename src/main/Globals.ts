@@ -10,11 +10,13 @@ export type ExtraConfig = DongleConfig & {
 }
 
 export interface KeyBindings {
+  'selectUp': string,
+  'selectDown': string,
+  'up': string,
   'left': string,
   'right': string,
-  'selectDown': string,
-  'back': string,
   'down': string,
+  'back': string,
   'home': string,
   'play': string,
   'pause': string,
