@@ -1,71 +1,99 @@
-import { app, shell, BrowserWindow, session, ipcMain, protocol } from 'electron';
-import { join, extname } from 'path';
-import { existsSync, createReadStream, readFileSync, writeFileSync } from 'fs';
-import { electronApp, is } from '@electron-toolkit/utils';
-import { DEFAULT_CONFIG } from '@carplay/node';
+import { app, shell, BrowserWindow, session, ipcMain, protocol } from 'electron'
+import { join, extname } from 'path'
+import { existsSync, createReadStream, readFileSync, writeFileSync } from 'fs'
+import { electronApp, is } from '@electron-toolkit/utils'
+import { DEFAULT_CONFIG } from '@carplay/node'
+import { Socket } from './Socket'
+import { ExtraConfig, KeyBindings } from './Globals'
+import { USBService } from './usb/USBService'
+import { CarplayService } from './carplay/CarplayService'
 
-import { Socket } from './Socket';
-import { ExtraConfig, KeyBindings } from './Globals';
-import { USBService } from './usb/USBService';
-import { CarplayService } from './carplay/CarplayService';
+app.commandLine.appendSwitch(
+  'enable-features',
+  [
+    // Linux-specific
+    'VaapiVideoDecodeLinuxGL',
+    'AcceleratedVideoDecodeLinuxZeroCopyGL'
+  ].join(',')
+)
+
+app.commandLine.appendSwitch('ignore-gpu-blocklist')
+app.commandLine.appendSwitch('enable-zero-copy')
+app.commandLine.appendSwitch('enable-gpu-rasterization')
+app.commandLine.appendSwitch('enable-accelerated-video-decode')
+
+if (process.platform === 'darwin') {
+  app.commandLine.appendSwitch('enable-unsafe-webgpu')
+  app.commandLine.appendSwitch('enable-dawn-features')
+}
+
+app.on('gpu-info-update', () => {
+  console.log('GPU Info:', app.getGPUFeatureStatus())
+})
 
 const mimeTypeFromExt = (ext: string): string =>
   ({
-    '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
-    '.png': 'image/png',  '.jpg': 'image/jpeg',      '.jpeg': 'image/jpeg',
-    '.svg': 'image/svg+xml', '.json': 'application/json',
-    '.wasm': 'application/wasm', '.map': 'application/json'
-  }[ext.toLowerCase()] ?? 'application/octet-stream');
+    '.html': 'text/html',
+    '.js': 'text/javascript',
+    '.css': 'text/css',
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.svg': 'image/svg+xml',
+    '.json': 'application/json',
+    '.wasm': 'application/wasm',
+    '.map': 'application/json'
+  })[ext.toLowerCase()] ?? 'application/octet-stream'
 
-const MIN_WIDTH = 400;
+const MIN_WIDTH = 400
 
 function applyAspectRatio(win: BrowserWindow, width: number, height: number): void {
-  if (!win) return;
+  if (!win) return
 
-  const ratio = width && height ? width / height : 0;
+  const ratio = width && height ? width / height : 0
 
-  const [winW, winH]         = win.getSize();
-  const [contentW, contentH] = win.getContentSize();
-  const extraWidth  = Math.max(0, winW - contentW);
-  const extraHeight = Math.max(0, winH - contentH);
+  const [winW, winH] = win.getSize()
+  const [contentW, contentH] = win.getContentSize()
+  const extraWidth = Math.max(0, winW - contentW)
+  const extraHeight = Math.max(0, winH - contentH)
 
-  win.setAspectRatio(ratio, { width: extraWidth, height: extraHeight });
+  win.setAspectRatio(ratio, { width: extraWidth, height: extraHeight })
 
   if (ratio > 0) {
-    const minH = Math.round(MIN_WIDTH / ratio);
-    win.setMinimumSize(MIN_WIDTH + extraWidth, minH + extraHeight);
+    const minH = Math.round(MIN_WIDTH / ratio)
+    win.setMinimumSize(MIN_WIDTH + extraWidth, minH + extraHeight)
   } else {
-    win.setMinimumSize(0, 0);
+    win.setMinimumSize(0, 0)
   }
 }
 
 // Globals
-let mainWindow: BrowserWindow | null;
-let socket: Socket;
-let config: ExtraConfig;
-let usbService: USBService;
-let isQuitting = false;
+let mainWindow: BrowserWindow | null
+let socket: Socket
+let config: ExtraConfig
+let usbService: USBService
+let isQuitting = false
 
-const carplayService = new CarplayService();
-(global as any).carplayService = carplayService;
+const carplayService = new CarplayService()
+;(global as any).carplayService = carplayService
 
 // macOS
 if (process.platform === 'darwin') {
   app.on('before-quit', async (e) => {
-    if (isQuitting) return;
-    isQuitting = true;
-    e.preventDefault();
+    if (isQuitting) return
+    isQuitting = true
+    e.preventDefault()
     try {
-      await carplayService.stop().catch(console.warn);
-      usbService?.stop();
-      await new Promise(r => setTimeout(r, 100));
+      await carplayService.stop().catch(console.warn)
+      usbService?.stop()
+      await new Promise((r) => setTimeout(r, 100))
     } finally {
-      app.exit(0);
+      app.exit(0)
     }
-  });
+  })
 }
 
-app.on('will-quit', () => usbService?.stop());
+app.on('will-quit', () => usbService?.stop())
 
 // Protocol & Config
 protocol.registerSchemesAsPrivileged([
@@ -79,10 +107,10 @@ protocol.registerSchemesAsPrivileged([
       stream: true
     }
   }
-]);
+])
 
-const appPath    = app.getPath('userData');
-const configPath = join(appPath, 'config.json');
+const appPath = app.getPath('userData')
+const configPath = join(appPath, 'config.json')
 
 const DEFAULT_BINDINGS: KeyBindings = {
   up: 'ArrowUp',
@@ -97,12 +125,12 @@ const DEFAULT_BINDINGS: KeyBindings = {
   pause: 'KeyO',
   next: 'KeyM',
   prev: 'KeyN'
-};
+}
 
 function loadConfig(): ExtraConfig {
-  let fileConfig: Partial<ExtraConfig> = {};
+  let fileConfig: Partial<ExtraConfig> = {}
   if (existsSync(configPath)) {
-    fileConfig = JSON.parse(readFileSync(configPath, 'utf8'));
+    fileConfig = JSON.parse(readFileSync(configPath, 'utf8'))
   }
 
   const merged: ExtraConfig = {
@@ -115,26 +143,24 @@ function loadConfig(): ExtraConfig {
     navVolume: 0.5,
     bindings: { ...DEFAULT_BINDINGS },
     ...fileConfig
-  } as ExtraConfig;
+  } as ExtraConfig
 
   merged.bindings = {
     ...DEFAULT_BINDINGS,
     ...(fileConfig.bindings || {})
-  };
-
-  const needWrite =
-    !existsSync(configPath) ||
-    JSON.stringify(fileConfig) !== JSON.stringify(merged);
-
-  if (needWrite) {
-    writeFileSync(configPath, JSON.stringify(merged, null, 2));
-    console.log('[config] Written complete config.json with all defaults');
   }
 
-  return merged;
+  const needWrite = !existsSync(configPath) || JSON.stringify(fileConfig) !== JSON.stringify(merged)
+
+  if (needWrite) {
+    writeFileSync(configPath, JSON.stringify(merged, null, 2))
+    console.log('[config] Written complete config.json with all defaults')
+  }
+
+  return merged
 }
 
-config = loadConfig();
+config = loadConfig()
 
 // Window
 function createWindow(): void {
@@ -152,60 +178,92 @@ function createWindow(): void {
       nodeIntegration: false,
       contextIsolation: true,
       webSecurity: true,
-      allowRunningInsecureContent: false
+      allowRunningInsecureContent: false,
+      experimentalFeatures: true
     }
-  });
+  })
 
-  const ses = mainWindow.webContents.session;
-  ses.setPermissionCheckHandler((_w,p) => ['usb','hid','media','display-capture'].includes(p));
-  ses.setPermissionRequestHandler((_w,p,cb) => cb(['usb','hid','media','display-capture'].includes(p)));
-  ses.setUSBProtectedClassesHandler(({protectedClasses}) => protectedClasses.filter(c => ['audio','video','vendor-specific'].includes(c)));
+  const ses = mainWindow.webContents.session
+  ses.setPermissionCheckHandler((_w, p) => ['usb', 'hid', 'media', 'display-capture'].includes(p))
+  ses.setPermissionRequestHandler((_w, p, cb) =>
+    cb(['usb', 'hid', 'media', 'display-capture'].includes(p))
+  )
+  ses.setUSBProtectedClassesHandler(({ protectedClasses }) =>
+    protectedClasses.filter((c) => ['audio', 'video', 'vendor-specific'].includes(c))
+  )
 
-  session.defaultSession.webRequest.onHeadersReceived({ urls: ['*://*/*', 'file://*/*'] }, (d,cb) => cb({
-    responseHeaders: {
-      ...d.responseHeaders,
-      'Cross-Origin-Opener-Policy': ['same-origin'],
-      'Cross-Origin-Embedder-Policy': ['require-corp'],
-      'Cross-Origin-Resource-Policy': ['same-site']
-    }
-  }));
+  session.defaultSession.webRequest.onHeadersReceived(
+    { urls: ['*://*/*', 'file://*/*'] },
+    (d, cb) =>
+      cb({
+        responseHeaders: {
+          ...d.responseHeaders,
+          'Cross-Origin-Opener-Policy': ['same-origin'],
+          'Cross-Origin-Embedder-Policy': ['require-corp'],
+          'Cross-Origin-Resource-Policy': ['same-site']
+        }
+      })
+  )
 
   mainWindow.once('ready-to-show', () => {
-    if (!mainWindow) return;
-    mainWindow.show();
+    if (!mainWindow) return
+    mainWindow.show()
 
     if (config.kiosk) {
-      mainWindow.setKiosk(true);
-      applyAspectRatio(mainWindow, 0, 0);
+      mainWindow.setKiosk(true)
+      applyAspectRatio(mainWindow, 0, 0)
     } else {
-      mainWindow.setContentSize(config.width, config.height, false);
-      applyAspectRatio(mainWindow, config.width, config.height);
+      mainWindow.setContentSize(config.width, config.height, false)
+      applyAspectRatio(mainWindow, config.width, config.height)
     }
 
-    if (is.dev) mainWindow.webContents.openDevTools({ mode: 'detach' });
-    carplayService.attachRenderer(mainWindow.webContents);
-  });
+    if (is.dev) mainWindow.webContents.openDevTools({ mode: 'detach' })
+    carplayService.attachRenderer(mainWindow.webContents)
+  })
 
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => { shell.openExternal(url); return { action: 'deny' }; });
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    shell.openExternal(url)
+    return { action: 'deny' }
+  })
 
-  if (is.dev && process.env.ELECTRON_RENDERER_URL) mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL);
-  else mainWindow.loadURL('app://index.html');
+  if (is.dev && process.env.ELECTRON_RENDERER_URL)
+    mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL)
+  else mainWindow.loadURL('app://index.html')
 
   // macOS hide
-  mainWindow.on('close', (e) => { if (process.platform==='darwin'&&!isQuitting){ e.preventDefault(); mainWindow?.hide(); }});
+  mainWindow.on('close', (e) => {
+    if (process.platform === 'darwin' && !isQuitting) {
+      e.preventDefault()
+      mainWindow?.hide()
+    }
+  })
+
+  // chrome://gpu
+  if (is.dev) {
+    const gpuWindow = new BrowserWindow({
+      width: 1000,
+      height: 800,
+      title: 'GPU Info',
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true
+      }
+    })
+    gpuWindow.loadURL('chrome://gpu')
+  }
 }
 
 // App‑Lifecycle
 app.whenReady().then(() => {
-  electronApp.setAppUserModelId('com.electron.carplay');
+  electronApp.setAppUserModelId('com.electron.carplay')
 
   protocol.registerStreamProtocol('app', (request, cb) => {
     try {
-      const u = new URL(request.url);
-      let path = decodeURIComponent(u.pathname);
-      if (path==='/'||path==='') path = '/index.html';
-      const file = join(__dirname, '../renderer', path);
-      if (!existsSync(file)) return cb({ statusCode: 404 });
+      const u = new URL(request.url)
+      let path = decodeURIComponent(u.pathname)
+      if (path === '/' || path === '') path = '/index.html'
+      const file = join(__dirname, '../renderer', path)
+      if (!existsSync(file)) return cb({ statusCode: 404 })
       cb({
         statusCode: 200,
         headers: {
@@ -215,53 +273,62 @@ app.whenReady().then(() => {
           'Cross-Origin-Resource-Policy': 'same-site'
         },
         data: createReadStream(file)
-      });
+      })
     } catch (e) {
-      console.error('[app-protocol] error', e);
-      cb({ statusCode: 500 });
+      console.error('[app-protocol] error', e)
+      cb({ statusCode: 500 })
     }
-  });
+  })
 
-  usbService = new USBService(carplayService);
-  socket      = new Socket(config, saveSettings);
+  usbService = new USBService(carplayService)
+  socket = new Socket(config, saveSettings)
 
-  ipcMain.handle('quit', () => process.platform==='darwin' ? mainWindow?.hide() : app.quit());
+  ipcMain.handle('quit', () => (process.platform === 'darwin' ? mainWindow?.hide() : app.quit()))
 
-  createWindow();
+  createWindow()
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length===0 && !mainWindow) createWindow();
-    else mainWindow?.show();
-  });
-});
+    if (BrowserWindow.getAllWindows().length === 0 && !mainWindow) createWindow()
+    else mainWindow?.show()
+  })
+})
 
-app.on('window-all-closed', () => { if (process.platform!=='darwin') app.quit(); });
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') app.quit()
+})
 
 // Settings IPC
 function saveSettings(settings: ExtraConfig) {
-  writeFileSync(configPath, JSON.stringify({
-    ...settings,
-    width:        +settings.width,
-    height:       +settings.height,
-    fps:          +settings.fps,
-    dpi:          +settings.dpi,
-    format:       +settings.format,
-    iBoxVersion:  +settings.iBoxVersion,
-    phoneWorkMode:+settings.phoneWorkMode,
-    packetMax:    +settings.packetMax,
-    mediaDelay:   +settings.mediaDelay
-  }, null, 2));
+  writeFileSync(
+    configPath,
+    JSON.stringify(
+      {
+        ...settings,
+        width: +settings.width,
+        height: +settings.height,
+        fps: +settings.fps,
+        dpi: +settings.dpi,
+        format: +settings.format,
+        iBoxVersion: +settings.iBoxVersion,
+        phoneWorkMode: +settings.phoneWorkMode,
+        packetMax: +settings.packetMax,
+        mediaDelay: +settings.mediaDelay
+      },
+      null,
+      2
+    )
+  )
 
-  socket.config = settings;
-  socket.sendSettings();
+  socket.config = settings
+  socket.sendSettings()
 
-  if (!mainWindow) return;
+  if (!mainWindow) return
 
   if (settings.kiosk) {
-    mainWindow.setKiosk(true);
-    applyAspectRatio(mainWindow, 0, 0);
+    mainWindow.setKiosk(true)
+    applyAspectRatio(mainWindow, 0, 0)
   } else {
-    mainWindow.setKiosk(false);
-    mainWindow.setContentSize(settings.width, settings.height, false);
-    applyAspectRatio(mainWindow, settings.width, settings.height);
+    mainWindow.setKiosk(false)
+    mainWindow.setContentSize(settings.width, settings.height, false)
+    applyAspectRatio(mainWindow, settings.width, settings.height)
   }
 }
