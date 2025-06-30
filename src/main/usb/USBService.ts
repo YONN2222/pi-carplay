@@ -9,11 +9,14 @@ const { usb, getDeviceList } = require('usb') as { usb: UsbNamespace; getDeviceL
 
 export class USBService {
   private lastDongleState: boolean = false;
+  private stopped = false;
 
-  public stop() {
+  public async stop(): Promise<void> {
+    if (this.stopped) return;
+    this.stopped = true;
     usb.removeAllListeners('attach');
     usb.removeAllListeners('detach');
-    usb.refHotplugEvents();
+    usb.unrefHotplugEvents();
     console.log('[USBService] Monitoring stopped');
   }
 
