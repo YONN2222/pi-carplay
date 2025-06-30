@@ -43,6 +43,11 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ github.event.inputs.branch && format('refs/heads/{0}', github.event.inputs.branch) || format('refs/heads/{0}', github.event.workflow_run.head_branch) }}
+      
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v3
+        with:
+          node-version: '22.x'
 
       - name: Read version from package.json
         id: pkg
