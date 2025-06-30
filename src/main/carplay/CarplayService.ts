@@ -14,7 +14,7 @@ import {
   DongleConfig,
   DEFAULT_CONFIG,
   decodeTypeMap,
-  AudioCommand,
+  AudioCommand
 } from './messages'
 import fs from 'fs'
 import path from 'path'
@@ -34,7 +34,7 @@ export class CarplayService {
   private audioInfoSent = false
 
   constructor() {
-    this.driver.on('message', msg => {
+    this.driver.on('message', (msg) => {
       if (!this.webContents) return
 
       if (msg instanceof Plugged) {
@@ -51,13 +51,14 @@ export class CarplayService {
       } else if (msg instanceof VideoData) {
         this.webContents.send('carplay-event', {
           type: 'resolution',
-          payload: { width: msg.width, height: msg.height },
+          payload: { width: msg.width, height: msg.height }
         })
-        this.sendChunked('carplay-video-chunk', msg.data?.buffer, 512 * 1024)
+        this.sendChunked('carplay-video-chunk', msg.data?.buffer as ArrayBuffer, 512 * 1024)
       } else if (msg instanceof AudioData) {
         if (msg.data) {
-          this.sendChunked('carplay-audio-chunk', msg.data.buffer, 64 * 1024, { ...msg })
-
+          this.sendChunked('carplay-audio-chunk', msg.data.buffer as ArrayBuffer, 64 * 1024, {
+            ...msg
+          })
           if (!this.audioInfoSent) {
             const meta = decodeTypeMap[msg.decodeType]
             if (meta) {
@@ -67,8 +68,8 @@ export class CarplayService {
                   codec: meta.format ?? meta.mimeType,
                   sampleRate: meta.frequency,
                   channels: meta.channel,
-                  bitDepth: meta.bitDepth,
-                },
+                  bitDepth: meta.bitDepth
+                }
               })
               this.audioInfoSent = true
             }
@@ -80,7 +81,9 @@ export class CarplayService {
             msg.command === AudioCommand.AudioPhonecallStart
           ) {
             if (this.config.audioTransferMode) {
-              console.debug('[CarplayService] Skipping microphone start because audioTransferMode is enabled')
+              console.debug(
+                '[CarplayService] Skipping microphone start because audioTransferMode is enabled'
+              )
               return
             }
             if (!this._mic) {
@@ -147,11 +150,13 @@ export class CarplayService {
 
     console.debug('[CarplayService] audioTransferMode:', this.config.audioTransferMode)
 
-    const device = usb.getDeviceList().find(
-      d =>
-        d.deviceDescriptor.idVendor === 0x1314 &&
-        [0x1520, 0x1521].includes(d.deviceDescriptor.idProduct)
-    )
+    const device = usb
+      .getDeviceList()
+      .find(
+        (d) =>
+          d.deviceDescriptor.idVendor === 0x1314 &&
+          [0x1520, 0x1521].includes(d.deviceDescriptor.idProduct)
+      )
     if (!device) {
       console.warn('[CarplayService] No dongle found during start()')
       return
@@ -207,7 +212,7 @@ export class CarplayService {
         total,
         isLast: end >= total,
         chunk: Buffer.from(chunk),
-        ...extra,
+        ...extra
       })
       offset = end
     }
