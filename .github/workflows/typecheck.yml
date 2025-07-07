@@ -17,10 +17,15 @@ jobs:
         with:
           fetch-depth: 1
 
-      - uses: actions/setup-node@v4
+      - name: Fetch latest Node.js 22.x
+        run: |
+          curl -s https://nodejs.org/dist/index.json | jq -r '[.[] | select(.version | test("^v22\\.\\d+\\.\\d+$"))][0].version' > .nvmrc
+          echo "Using Node version: $(cat .nvmrc)"
+
+      - name: Setup latest Node.js 22.x
+        uses: actions/setup-node@v4
         with:
-          node-version: 22.x
-          cache: npm
+          node-version-file: .nvmrc
 
       - name: Ensure native build deps
         run: |

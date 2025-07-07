@@ -57,13 +57,8 @@ The `setup-pi.sh` script performs the following tasks:
 
 ## Build Environment
 
-```bash
-node -v
-v22.16.0
-
-npm -v
-10.9.2
-```
+![Node](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/f-io/pi-carplay/version/.github/badges/main-node.json)
+![npm](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/f-io/pi-carplay/version/.github/badges/main-npm.json)
 
 ---
 
@@ -84,6 +79,7 @@ Make sure the following packages and tools are installed on your system before b
 ```bash
 git clone --branch main --single-branch https://github.com/f-io/pi-carplay.git \
   && cd pi-carplay \
+  && rm package-lock.json \
   && npm install \
   && npm run build \
   && npm run build:armLinux

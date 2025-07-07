@@ -44,10 +44,15 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.inputs.branch && format('refs/heads/{0}', github.event.inputs.branch) || format('refs/heads/{0}', github.event.workflow_run.head_branch) }}
       
-      - name: Setup Node.js 22
-        uses: actions/setup-node@v3
+      - name: Fetch latest Node.js 22.x
+        run: |
+          curl -s https://nodejs.org/dist/index.json | jq -r '[.[] | select(.version | test("^v22\\.\\d+\\.\\d+$"))][0].version' > .nvmrc
+          echo "Using Node version: $(cat .nvmrc)"
+
+      - name: Setup latest Node.js 22.x
+        uses: actions/setup-node@v4
         with:
-          node-version: '22.x'
+          node-version-file: .nvmrc
 
       - name: Read version from package.json
         id: pkg
@@ -68,10 +73,10 @@ jobs:
 
       - name: Build for ARM64 (emulated)
         if: matrix.platform == 'arm64'
-        uses: uraimo/run-on-arch-action@v2
+        uses: uraimo/run-on-arch-action@v3
         with:
           arch: aarch64
-          distro: ubuntu22.04
+          distro: ubuntu24.04
           run: |
             apt-get update
             apt-get install -y curl git
@@ -123,6 +128,11 @@ jobs:
           mkdir -p .github/badges
           echo "{\"schemaVersion\":1,\"label\":\"${BRANCH_NAME}\",\"message\":\"v${{ steps.pkg.outputs.version }}\",\"color\":\"lightgrey\"}" > .github/badges/${BRANCH_NAME}-version.json
 
+      - name: Setup latest Node.js 22.x
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
       - name: Push version badge to version branch
         if: matrix.platform == 'x86_64'
         env:
@@ -130,6 +140,8 @@ jobs:
         run: |
           BRANCH_NAME="${{ github.event.inputs.branch || github.event.workflow_run.head_branch || github.ref_name }}"
           VERSION="${{ steps.pkg.outputs.version }}"
+          NODE_VERSION=$(node -v | sed 's/^v//')
+          NPM_VERSION=$(npm -v)
 
           mkdir temp-badges
           cd temp-badges
@@ -141,9 +153,14 @@ jobs:
 
           mkdir -p .github/badges
           echo "{\"schemaVersion\":1,\"label\":\"${BRANCH_NAME}\",\"message\":\"v${VERSION}\",\"color\":\"lightblue\"}" > .github/badges/${BRANCH_NAME}-version.json
+          echo "{\"schemaVersion\":1,\"label\":\"node\",\"message\":\"${NODE_VERSION}\",\"color\":\"lightgrey\"}" > .github/badges/${BRANCH_NAME}-node.json
+          echo "{\"schemaVersion\":1,\"label\":\"npm\",\"message\":\"${NPM_VERSION}\",\"color\":\"lightgrey\"}" > .github/badges/${BRANCH_NAME}-npm.json
 
           git add .github/badges/${BRANCH_NAME}-version.json
-          git commit -m "Update ${BRANCH_NAME} version badge to ${VERSION}" || echo "No changes"
+          git add .github/badges/${BRANCH_NAME}-node.json
+          git add .github/badges/${BRANCH_NAME}-npm.json
+
+          git commit -m "Update ${BRANCH_NAME} badges: version ${VERSION}, node ${NODE_VERSION}, npm ${NPM_VERSION}" || echo "No changes"
           git push
           cd ..
           rm -rf temp-badges
