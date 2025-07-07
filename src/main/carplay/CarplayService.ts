@@ -55,6 +55,8 @@ export class CarplayService {
   private frameInterval: NodeJS.Timeout | null = null
   private _mic: NodeMicrophone | null = null
   private started = false
+  private stopping = false
+  private shuttingDown = false
   private audioInfoSent = false
 
   constructor() {
@@ -184,6 +186,10 @@ export class CarplayService {
   }
 
   public async autoStartIfNeeded() {
+    if (this.shuttingDown) {
+      console.log('[CarplayService] Skipping autoStartIfNeeded – shutting down')
+      return
+    }
     if (!this.started && dongleConnected) {
       console.log('[CarplayService] AutoStartIfNeeded → calling start()')
       await this.start()
@@ -230,12 +236,23 @@ export class CarplayService {
     }
   }
 
-  public async stop() {
+  public async stop(): Promise<void> {
+    if (!this.started || this.stopping) return
+    this.stopping = true
     this.clearTimeouts()
-    await this.driver.close()
-    this._mic?.stop()
+    try {
+      await this.driver.close()
+    } catch (err) {
+      console.warn('[CarplayService] driver.close() failed', err)
+    }
+    try {
+      this._mic?.stop()
+    } catch (err) {
+      console.warn('[CarplayService] mic.stop() failed', err)
+    }
     this.started = false
     this.audioInfoSent = false
+    this.stopping = false
     console.log('[CarplayService] CarPlay stopped')
   }
 

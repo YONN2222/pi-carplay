@@ -89,23 +89,21 @@ let isQuitting = false
 const carplayService = new CarplayService()
 ;(global as any).carplayService = carplayService
 
-if (process.platform === 'darwin') {
-  app.on('before-quit', async (e) => {
-    if (isQuitting) return
-    isQuitting = true
-    e.preventDefault()
-
-    try {
-      await carplayService.stop()
-      await usbService.stop()
-      await new Promise((r) => setTimeout(r, 100))
-    } catch (err) {
-      console.warn('Error while quitting:', err)
-    } finally {
-      app.exit(0)
-    }
-  })
-}
+app.on('before-quit', async (e) => {
+  if (isQuitting) return
+  isQuitting = true
+  e.preventDefault()
+  try {
+    carplayService['shuttingDown'] = true
+    await carplayService.stop()
+    await usbService['forceReset']?.()
+    await usbService.stop()
+  } catch (err) {
+    console.warn('Error while quitting:', err)
+  } finally {
+    app.exit(0)
+  }
+})
 
 // Protocol & Config
 protocol.registerSchemesAsPrivileged([
