@@ -78,7 +78,7 @@ jobs:
             curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
             apt-get install -y nodejs build-essential python3 python3-dev libusb-1.0-0-dev libudev-dev pkg-config libusb-1.0-0 libudev1
             echo "==> Waiting for file system to settle (QEMU workaround)..."
-            sleep 5
+            sleep 15
             npm run install:clean
             npx electron-rebuild -f
             npm run typecheck
