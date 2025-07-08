@@ -79,8 +79,7 @@ Make sure the following packages and tools are installed on your system before b
 ```bash
 git clone --branch main --single-branch https://github.com/f-io/pi-carplay.git \
   && cd pi-carplay \
-  && rm package-lock.json \
-  && npm install \
+  && npm run install:clean \
   && npm run build \
   && npm run build:armLinux
 ```

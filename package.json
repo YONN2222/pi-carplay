@@ -1,6 +1,6 @@
 {
   "name": "pi-carplay",
-  "version": "3.5.2",
+  "version": "3.5.3",
   "description": "An Electron application with React and TypeScript",
   "main": "./out/main/main.js",
   "author": "Lasse Heitgres",
@@ -13,7 +13,7 @@
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
     "start": "electron-vite preview",
     "dev": "electron-vite dev",
-    "install:clean": "rm -rf node_modules package-lock.json dist && npm install --unsafe-perm --no-audit --loglevel=verbose",
+    "install:clean": "rm -rf node_modules package-lock.json dist && npm install --no-audit --loglevel=verbose",
     "build": "npm run typecheck && electron-vite build",
     "postinstall": "electron-builder install-app-deps",
     "build:mac": "electron-vite build && electron-builder --mac --arm64 --config",
