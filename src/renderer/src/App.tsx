@@ -9,6 +9,7 @@ import Camera from './components/Camera'
 import { Box, Modal } from '@mui/material'
 import { useCarplayStore, useStatusStore } from "./store/store";
 import type { KeyCommand } from "./components/worker/types"
+import { updateCameras } from "./utils/cameraDetection";
 
 const style = {
   position: 'absolute',
@@ -25,64 +26,85 @@ function App() {
   const [receivingVideo, setReceivingVideo] = useState(false);
   const [commandCounter, setCommandCounter] = useState(0);
   const [keyCommand, setKeyCommand] = useState('');
+
   const reverse = useStatusStore(state => state.reverse);
   const setReverse = useStatusStore(state => state.setReverse);
+
   const settings = useCarplayStore(state => state.settings);
+  const saveSettings = useCarplayStore(state => state.saveSettings);
+  const setCameraFound = useStatusStore(state => state.setCameraFound);
 
   useEffect(() => {
-    document.addEventListener('keydown', onKeyDown)
-
-    return () => document.removeEventListener('keydown', onKeyDown)
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
   }, [settings]);
 
-
   const onKeyDown = (event: KeyboardEvent) => {
-    if(Object.values(settings!.bindings).includes(event.code)) {
-      let action = Object.keys(settings!.bindings).find(key =>
-        settings!.bindings[key] === event.code
-      )
-      console.log(action)
-      if(action !== undefined) {
-        setKeyCommand(action)
-        setCommandCounter(prev => prev +1)
-        if(action === 'selectDown') {
-          console.log('select down')
+    if (!settings) return;
+
+    if (Object.values(settings.bindings).includes(event.code)) {
+      const action = Object.keys(settings.bindings).find(key =>
+        settings.bindings[key] === event.code
+      );
+      if (action !== undefined) {
+        setKeyCommand(action);
+        setCommandCounter(prev => prev + 1);
+        if (action === 'selectDown') {
           setTimeout(() => {
-            setKeyCommand('selectUp')
-            setCommandCounter(prev => prev +1)
-          }, 200)
+            setKeyCommand('selectUp');
+            setCommandCounter(prev => prev + 1);
+          }, 200);
         }
       }
     }
-  }
+  };
+
+  useEffect(() => {
+    if (!settings) return;
+
+    updateCameras(setCameraFound, saveSettings, settings);
+
+    const usbHandler = (_: any, data: { type: string }) => {
+      if (['attach', 'plugged', 'detach', 'unplugged'].includes(data.type)) {
+        updateCameras(setCameraFound, saveSettings, settings);
+      }
+    };
+
+    window.carplay.usb.listenForEvents(usbHandler);
+    return () => window.carplay.usb.unlistenForEvents?.(usbHandler);
+  }, [settings]);
 
   return (
     <Router>
       <div
         style={{ height: '100%', touchAction: 'none' }}
-        id={'main'}
+        id="main"
         className="App"
       >
-        <Nav receivingVideo={receivingVideo} settings={settings}/>
-        {settings ? <Carplay  receivingVideo={receivingVideo} setReceivingVideo={setReceivingVideo} settings={settings} command={keyCommand as KeyCommand} commandCounter={commandCounter}/> : null}
+        <Nav receivingVideo={receivingVideo} settings={settings} />
+        {settings && (
+          <Carplay
+            receivingVideo={receivingVideo}
+            setReceivingVideo={setReceivingVideo}
+            settings={settings}
+            command={keyCommand as KeyCommand}
+            commandCounter={commandCounter}
+          />
+        )}
         <Routes>
-          <Route path={"/"} element={<Home />} />
-          <Route path={"/settings"} element={<Settings settings={settings!}/>} />
-          <Route path={"/info"} element={<Info />} />
-          <Route path={"/camera"} element={<Camera settings={settings!}/>} />
+          <Route path="/" element={<Home />} />
+          <Route path="/settings" element={<Settings settings={settings!} />} />
+          <Route path="/info" element={<Info />} />
+          <Route path="/camera" element={<Camera settings={settings!} />} />
         </Routes>
-        <Modal
-          open={reverse}
-          onClick={()=> setReverse(false)}
-        >
+        <Modal open={reverse} onClick={() => setReverse(false)}>
           <Box sx={style}>
-            <Camera settings={settings}/>
+            <Camera settings={settings} />
           </Box>
         </Modal>
       </div>
     </Router>
-
-  )
+  );
 }
 
-export default App
+export default App;
