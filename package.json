@@ -1,10 +1,9 @@
-
 {
   "name": "pi-carplay",
   "version": "3.5.2",
   "description": "An Electron application with React and TypeScript",
   "main": "./out/main/main.js",
-  "author": " Lasse Heitgres",
+  "author": "Lasse Heitgres",
   "homepage": "https://f-io.dev",
   "scripts": {
     "format": "prettier --write .",
@@ -22,7 +21,6 @@
     "build:armLinux": "electron-vite build && electron-builder --linux AppImage --arm64 --config"
   },
   "dependencies": {
-    "@electron-toolkit/preload": "3.0.2",
     "@electron-toolkit/utils": "4.0.0",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
@@ -31,11 +29,9 @@
     "@mui/material": "^7.2.0",
     "buffer": "^6.0.3",
     "electron-is-dev": "^3.0.1",
-    "electron-typescript-ipc": "^3.0.0",
     "events": "^3.3.0",
     "fft.js": "^4.0.4",
     "lodash.debounce": "^4.0.8",
-    "pcm-player": "^0.0.18",
     "pcm-ringbuf-player": "github:f-io/pcm-ringbuf-player",
     "react-router-dom": "^7.6.3",
     "socket.io": "^4.8.1",
@@ -54,7 +50,6 @@
     "@types/lodash.debounce": "^4.0.9",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
-    "@types/usb": "^2.0.5",
     "@types/w3c-web-usb": "^1.0.10",
     "@typescript-eslint/eslint-plugin": "^8.35.1",
     "@typescript-eslint/parser": "^8.35.1",
