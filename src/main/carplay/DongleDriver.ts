@@ -11,7 +11,7 @@ import {
   SendString,
   SendBoxSettings,
   SendCommand,
-  HeartBeat,
+  HeartBeat
 } from './messages/sendable.js'
 
 const CONFIG_NUMBER = 1
@@ -19,7 +19,7 @@ const MAX_ERROR_COUNT = 5
 
 export enum HandDriveType {
   LHD = 0,
-  RHD = 1,
+  RHD = 1
 }
 
 export type PhoneTypeConfig = { frameInterval: number | null }
@@ -63,8 +63,8 @@ export const DEFAULT_CONFIG: DongleConfig = {
   micType: 'os',
   phoneConfig: {
     [PhoneType.CarPlay]: { frameInterval: 5000 },
-    [PhoneType.AndroidAuto]: { frameInterval: null },
-  },
+    [PhoneType.AndroidAuto]: { frameInterval: null }
+  }
 }
 
 export class DriverStateError extends Error {}
@@ -79,7 +79,7 @@ export class DongleDriver extends EventEmitter {
 
   static knownDevices = [
     { vendorId: 0x1314, productId: 0x1520 },
-    { vendorId: 0x1314, productId: 0x1521 },
+    { vendorId: 0x1314, productId: 0x1521 }
   ]
 
   initialise = async (device: USBDevice) => {
@@ -94,8 +94,8 @@ export class DongleDriver extends EventEmitter {
       if (!cfg) throw new DriverStateError('Device has no configuration')
 
       const { interfaceNumber, alternate } = cfg.interfaces[0]
-      this._inEP = alternate.endpoints.find(e => e.direction === 'in')!
-      this._outEP = alternate.endpoints.find(e => e.direction === 'out')!
+      this._inEP = alternate.endpoints.find((e) => e.direction === 'in')!
+      this._outEP = alternate.endpoints.find((e) => e.direction === 'out')!
       if (!this._inEP || !this._outEP) throw new DriverStateError('Endpoints missing')
 
       await device.claimInterface(interfaceNumber)
@@ -105,10 +105,14 @@ export class DongleDriver extends EventEmitter {
     }
   }
 
-  send = async (msg: SendableMessage) => {
-    if (!this._device?.opened) return null
+  send = async (msg: SendableMessage): Promise<boolean> => {
+    const dev = this._device
+    if (!dev || !dev.opened) return false
+
     try {
-      const res = await this._device.transferOut(this._outEP!.endpointNumber, msg.serialise())
+      const buf = msg.serialise()
+      const view = new Uint8Array(buf.buffer as ArrayBuffer, buf.byteOffset, buf.byteLength)
+      const res = await dev.transferOut(this._outEP!.endpointNumber, view)
       return res.status === 'ok'
     } catch (err) {
       console.error('Send error', err)
@@ -125,20 +129,18 @@ export class DongleDriver extends EventEmitter {
       }
 
       try {
-        const headerBuf = (await this._device.transferIn(
-          this._inEP!.endpointNumber,
-          MessageHeader.dataLength,
-        ))?.data?.buffer
+        const headerBuf = (
+          await this._device.transferIn(this._inEP!.endpointNumber, MessageHeader.dataLength)
+        )?.data?.buffer
         if (this._closing) break
         if (!headerBuf) throw new HeaderBuildError('Empty header')
 
         const header = MessageHeader.fromBuffer(Buffer.from(headerBuf))
         let extra: Buffer | undefined
         if (header.length) {
-          const extraBuf = (await this._device.transferIn(
-            this._inEP!.endpointNumber,
-            header.length,
-          ))?.data?.buffer
+          const extraBuf = (
+            await this._device.transferIn(this._inEP!.endpointNumber, header.length)
+          )?.data?.buffer
           if (this._closing) break
           if (!extraBuf) throw new Error('Failed to read extra data')
           extra = Buffer.from(extraBuf)
@@ -170,7 +172,7 @@ export class DongleDriver extends EventEmitter {
       new SendCommand('wifiEnable'),
       new SendCommand(cfg.wifiType === '5ghz' ? 'wifi5g' : 'wifi24g'),
       new SendCommand(cfg.micType === 'box' ? 'boxMic' : 'mic'),
-      new SendCommand(cfg.audioTransferMode ? 'audioTransferOn' : 'audioTransferOff'),
+      new SendCommand(cfg.audioTransferMode ? 'audioTransferOn' : 'audioTransferOff')
     ]
     if (cfg.androidWorkMode)
       messages.push(new SendBoolean(cfg.androidWorkMode, FileAddress.ANDROID_WORK_MODE))
@@ -191,7 +193,7 @@ export class DongleDriver extends EventEmitter {
       this._heartbeatInterval = null
     }
 
-    if (process.platform === 'darwin') await new Promise(r => setTimeout(r, 50))
+    if (process.platform === 'darwin') await new Promise((r) => setTimeout(r, 50))
 
     try {
       await this._device.close()
