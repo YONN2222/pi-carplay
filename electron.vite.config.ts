@@ -70,7 +70,7 @@ export default defineConfig({
         ]
       }
     },
-    plugins: [react()],
+    plugins: [react({})],
     server: {
       headers: {
         'Cross-Origin-Embedder-Policy': 'require-corp',
