@@ -14,7 +14,7 @@ const alias = {
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()],
+    plugins: [externalizeDepsPlugin({})],
     build: {
       outDir: 'out/main',
       rollupOptions: {
@@ -32,7 +32,7 @@ export default defineConfig({
     }
   },
   preload: {
-    plugins: [externalizeDepsPlugin()],
+    plugins: [externalizeDepsPlugin({})],
     build: {
       outDir: 'out/preload'
     },
