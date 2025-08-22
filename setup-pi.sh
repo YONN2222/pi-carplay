@@ -19,7 +19,11 @@ for tool in curl xdg-user-dir; do
   if ! command -v "$tool" >/dev/null 2>&1; then
     echo "   $tool not found, installing…"
     sudo apt-get update
-    sudo apt-get --yes install "$tool"
+    if [ "$tool" = "xdg-user-dir" ]; then
+      sudo apt-get --yes install xdg-user-dirs
+    else
+      sudo apt-get --yes install "$tool"
+    fi
   else
     echo "   $tool found"
   fi
