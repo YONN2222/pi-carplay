@@ -11,15 +11,11 @@
   <img alt="Build Dev" src="https://img.shields.io/github/actions/workflow/status/f-io/pi-carplay/build.yml?branch=dev&label=build%20dev&style=flat">
 </p>
 
-# pi‑carplay
+# pi-carplay
 
-pi‑carplay brings Apple CarPlay functionality to the Raspberry Pi.
-While it started as a fork of react-carplay, it has since evolved into a standalone implementation with a different focus.
-
-🎯 Optimized for embedded Raspberry Pi setups and ultra-low-resolution displays
+pi-carplay brings Apple CarPlay and Android Auto to the Raspberry Pi, with support for Linux (ARM/x86) and macOS (ARM) as well. It is a standalone Electron app, optimized for embedded setups and ultra-low-resolution OEM displays.  
 
 > **Requirements:** A Carlinkit **CPC200-CCPA** (wireless & wired) or **CPC200-CCPW** (wired only) adapter.
-
 ## Installation (Raspberry Pi OS)
 
 ```bash
