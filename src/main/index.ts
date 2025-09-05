@@ -14,29 +14,30 @@ import { CarplayService } from './carplay/CarplayService'
 // On macOS, the WebCodecs hardware accelerator is available, so this Linux-specific fallback logic is not needed.
 
 // Feature-Flags
-app.commandLine.appendSwitch(
-  'enable-features',
-  [
-    'AcceleratedVideoEncoder',
-    'AcceleratedVideoDecodeLinuxGL',
-    'AcceleratedVideoDecodeLinuxZeroCopyGL'
-  ].join(',')
-)
+if (process.platform === 'linux') {
+  app.commandLine.appendSwitch(
+    'enable-features',
+    [
+      'AcceleratedVideoEncoder',
+      'AcceleratedVideoDecodeLinuxGL',
+      'AcceleratedVideoDecodeLinuxZeroCopyGL'
+    ].join(',')
+  )
 
-// EGL/ANGLE for OpenGL
-app.commandLine.appendSwitch('use-gl', 'angle')
-app.commandLine.appendSwitch('use-angle', 'gl')
+  // EGL/ANGLE for OpenGL
+  app.commandLine.appendSwitch('use-gl', 'angle')
+  app.commandLine.appendSwitch('use-angle', 'gles')
 
-// Disable blocklist & workarounds
-app.commandLine.appendSwitch('ignore-gpu-blocklist')
-app.commandLine.appendSwitch('disable-gpu-driver-bug-workaround')
+  // Disable blocklist & workarounds
+  app.commandLine.appendSwitch('ignore-gpu-blocklist')
 
-// GPU rasterization
-app.commandLine.appendSwitch('enable-gpu-rasterization')
+  // GPU rasterization
+  app.commandLine.appendSwitch('enable-gpu-rasterization')
+}
 
 if (process.platform === 'darwin') {
   app.commandLine.appendSwitch('enable-unsafe-webgpu')
-  app.commandLine.appendSwitch('enable-dawn-features')
+  app.commandLine.appendSwitch('enable-dawn-features', 'allow_unsafe_apis')
 }
 
 app.on('gpu-info-update', () => {
