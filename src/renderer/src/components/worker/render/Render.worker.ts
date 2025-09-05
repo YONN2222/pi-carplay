@@ -211,7 +211,7 @@ export class RendererWorker {
     const cfg: VideoDecoderConfig = {
       ...structuredClone(config),
       hardwareAcceleration: accel,
-      optimizeForLatency: false
+      optimizeForLatency: true
     }
 
     try {
