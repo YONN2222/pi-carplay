@@ -4,6 +4,8 @@ export class WebGL2Renderer implements FrameRenderer {
   #canvas: OffscreenCanvas | null = null
   #ctx: WebGL2RenderingContext | null = null
   #texture: WebGLTexture | null = null
+  #w = 0
+  #h = 0
 
   static vertexShaderSource = `
     attribute vec2 xy;
@@ -43,7 +45,7 @@ export class WebGL2Renderer implements FrameRenderer {
     gl.linkProgram(shaderProgram)
     gl.useProgram(shaderProgram)
 
-    const vertexBuffer = gl.createBuffer()
+    const vertexBuffer = gl.createBuffer()!
     gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer)
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, -1, 1, 1, 1, 1, -1]), gl.STATIC_DRAW)
 
@@ -51,7 +53,7 @@ export class WebGL2Renderer implements FrameRenderer {
     gl.vertexAttribPointer(xyLocation, 2, gl.FLOAT, false, 0, 0)
     gl.enableVertexAttribArray(xyLocation)
 
-    const texture = gl.createTexture()
+    const texture = gl.createTexture()!
     gl.bindTexture(gl.TEXTURE_2D, texture)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
@@ -65,17 +67,27 @@ export class WebGL2Renderer implements FrameRenderer {
     const gl = this.#ctx!
     const bitmap = await createImageBitmap(frame)
 
+    const w = frame.displayWidth
+    const h = frame.displayHeight
+
     if (this.#canvas) {
-      this.#canvas.width = frame.displayWidth
-      this.#canvas.height = frame.displayHeight
+      this.#canvas.width = w
+      this.#canvas.height = h
+    }
+
+    if (w !== this.#w || h !== this.#h) {
+      this.#w = w
+      this.#h = h
+      gl.bindTexture(gl.TEXTURE_2D, this.#texture!)
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null)
     }
 
     gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight)
     gl.clearColor(0, 0, 0, 1)
     gl.clear(gl.COLOR_BUFFER_BIT)
 
-    gl.bindTexture(gl.TEXTURE_2D, this.#texture)
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, bitmap)
+    gl.bindTexture(gl.TEXTURE_2D, this.#texture!)
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, bitmap)
 
     gl.drawArrays(gl.TRIANGLE_FAN, 0, 4)
 
