@@ -49,19 +49,19 @@ function readMediaFile(filePath: string): PersistedMediaFile {
 
 function asDomUSBDevice(dev: WebUSBDevice): USBDevice {
   const d = dev as unknown as USBDevice & {
-    manufacturerName?: string | null;
-    productName?: string | null;
-    serialNumber?: string | null;
-  };
-  if (d.manufacturerName === undefined) d.manufacturerName = null;
-  if (d.productName === undefined) d.productName = null;
-  if (d.serialNumber === undefined) d.serialNumber = null;
-  return d as unknown as USBDevice;
+    manufacturerName?: string | null
+    productName?: string | null
+    serialNumber?: string | null
+  }
+  if (d.manufacturerName === undefined) d.manufacturerName = null
+  if (d.productName === undefined) d.productName = null
+  if (d.serialNumber === undefined) d.serialNumber = null
+  return d as unknown as USBDevice
 }
-
 
 export class CarplayService {
   private driver = new DongleDriver()
+  private webUsbDevice: WebUSBDevice | null = null
   private webContents: WebContents | null = null
   private config: DongleConfig = DEFAULT_CONFIG
   private pairTimeout: NodeJS.Timeout | null = null
@@ -86,7 +86,9 @@ export class CarplayService {
         }
       } else if (msg instanceof Unplugged) {
         this.webContents.send('carplay-event', { type: 'unplugged' })
-        this.stop().catch(console.error)
+        if (!this.shuttingDown && !this.stopping) {
+          this.stop().catch(console.error)
+        }
       } else if (msg instanceof VideoData) {
         this.webContents.send('carplay-event', {
           type: 'resolution',
@@ -236,6 +238,7 @@ export class CarplayService {
     try {
       const webUsbDevice = await WebUSBDevice.createInstance(device)
       await webUsbDevice.open()
+      this.webUsbDevice = webUsbDevice
       await this.driver.initialise(asDomUSBDevice(webUsbDevice))
       await this.driver.start(this.config)
       this.pairTimeout = setTimeout(() => {
@@ -245,6 +248,11 @@ export class CarplayService {
       this.audioInfoSent = false
       console.log('[CarplayService] CarPlay started')
     } catch (err) {
+      try {
+        await this.webUsbDevice?.close()
+      } catch {}
+      this.webUsbDevice = null
+      this.started = false
       console.error('[CarplayService] Error during start()', err)
     }
   }
@@ -263,6 +271,13 @@ export class CarplayService {
     } catch (err) {
       console.warn('[CarplayService] mic.stop() failed', err)
     }
+    try {
+      await this.webUsbDevice?.close()
+    } catch (e) {
+      console.warn('webUsbDevice.close() failed', e)
+    } finally {
+      this.webUsbDevice = null
+    }
     this.started = false
     this.audioInfoSent = false
     this.stopping = false
@@ -270,8 +285,14 @@ export class CarplayService {
   }
 
   private clearTimeouts() {
-    if (this.pairTimeout) clearTimeout(this.pairTimeout)
-    if (this.frameInterval) clearInterval(this.frameInterval)
+    if (this.pairTimeout) {
+      clearTimeout(this.pairTimeout)
+      this.pairTimeout = null
+    }
+    if (this.frameInterval) {
+      clearInterval(this.frameInterval)
+      this.frameInterval = null
+    }
   }
 
   private sendChunked(
