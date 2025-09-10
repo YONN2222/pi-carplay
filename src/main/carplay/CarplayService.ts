@@ -47,6 +47,19 @@ function readMediaFile(filePath: string): PersistedMediaFile {
   }
 }
 
+function asDomUSBDevice(dev: WebUSBDevice): USBDevice {
+  const d = dev as unknown as USBDevice & {
+    manufacturerName?: string | null;
+    productName?: string | null;
+    serialNumber?: string | null;
+  };
+  if (d.manufacturerName === undefined) d.manufacturerName = null;
+  if (d.productName === undefined) d.productName = null;
+  if (d.serialNumber === undefined) d.serialNumber = null;
+  return d as unknown as USBDevice;
+}
+
+
 export class CarplayService {
   private driver = new DongleDriver()
   private webContents: WebContents | null = null
@@ -223,7 +236,7 @@ export class CarplayService {
     try {
       const webUsbDevice = await WebUSBDevice.createInstance(device)
       await webUsbDevice.open()
-      await this.driver.initialise(webUsbDevice)
+      await this.driver.initialise(asDomUSBDevice(webUsbDevice))
       await this.driver.start(this.config)
       this.pairTimeout = setTimeout(() => {
         this.driver.send(new SendCommand('wifiPair'))
