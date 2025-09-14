@@ -54,6 +54,12 @@ jobs:
         with:
           node-version-file: .nvmrc
 
+      - name: Setup npm 11.x
+        run: |
+          npm i -g npm@^11
+          echo "npm version: $(npm -v)"
+          node -e "const v=require('child_process').execSync('npm -v').toString().trim(); if(!/^11\./.test(v)){console.error('Expected npm 11.x, got', v); process.exit(1);} console.log('npm 11 OK');"
+
       - name: Read version from package.json
         id: pkg
         run: |
@@ -82,6 +88,9 @@ jobs:
             apt-get install -y curl git
             curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
             apt-get install -y nodejs build-essential python3 python3-dev libusb-1.0-0-dev libudev-dev pkg-config libusb-1.0-0 libudev1
+            npm i -g npm@^11
+            echo "npm version: $(npm -v)"
+            node -e "const v=require('child_process').execSync('npm -v').toString().trim(); if(!/^11\./.test(v)){console.error('Expected npm 11.x, got', v); process.exit(1);} console.log('npm 11 OK');"
             echo "==> Waiting for file system to settle (QEMU workaround)..."
             sleep 15
             npm run install:clean
@@ -107,6 +116,9 @@ jobs:
               echo "$pkg is up-to-date."
             fi
           done
+          npm i -g npm@^11
+          echo "npm version: $(npm -v)"
+          node -e "const v=require('child_process').execSync('npm -v').toString().trim(); if(!/^11\./.test(v)){console.error('Expected npm 11.x, got', v); process.exit(1);} console.log('npm 11 OK');"
           npm run install:clean
           npx electron-rebuild -f
           npm run typecheck
@@ -132,6 +144,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
+          cache: 'npm'
+
+      - name: Setup npm 11.x
+        run: |
+          npm i -g npm@^11
+          node -e "const v=require('child_process').execSync('npm -v').toString().trim(); if(!/^11\./.test(v)){console.error('Expected npm 11.x, got', v); process.exit(1);} console.log('npm 11 OK');"
 
       - name: Push version badge to version branch
         if: matrix.platform == 'x86_64'
