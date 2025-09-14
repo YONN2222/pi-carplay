@@ -27,6 +27,12 @@ jobs:
         with:
           node-version-file: .nvmrc
 
+      - name: Setup npm 11.x
+        run: |
+          npm i -g npm@^11
+          echo "npm version: $(npm -v)"
+          node -e "const v=require('child_process').execSync('npm -v').toString().trim(); if(!/^11\./.test(v)){console.error('Expected npm 11.x, got', v); process.exit(1);} console.log('npm 11 OK');"
+
       - name: Ensure native build deps
         run: |
           sudo apt-get update -qq
