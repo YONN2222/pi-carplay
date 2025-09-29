@@ -33,7 +33,7 @@
     "fft.js": "^4.0.4",
     "lodash.debounce": "^4.0.8",
     "pcm-ringbuf-player": "github:f-io/pcm-ringbuf-player",
-    "react-router-dom": "^7.9.1",
+    "react-router-dom": "^7.9.3",
     "socket.io": "^4.8.1",
     "socket.io-client": "^4.8.1",
     "stream-browserify": "^3.0.0",
@@ -48,14 +48,14 @@
     "@esbuild-plugins/node-globals-polyfill": "^0.2.3",
     "@types/events": "^3.0.3",
     "@types/lodash.debounce": "^4.0.9",
-    "@types/react": "^19.1.13",
+    "@types/react": "^19.1.15",
     "@types/react-dom": "^19.1.9",
     "@types/w3c-web-usb": "^1.0.12",
-    "@typescript-eslint/eslint-plugin": "^8.44.0",
-    "@typescript-eslint/parser": "^8.44.0",
-    "@vitejs/plugin-react": "^5.0.3",
+    "@typescript-eslint/eslint-plugin": "^8.44.1",
+    "@typescript-eslint/parser": "^8.44.1",
+    "@vitejs/plugin-react": "^5.0.4",
     "@webgpu/types": "^0.1.65",
-    "electron": "^38.1.2",
+    "electron": "^38.2.0",
     "electron-builder": "^26.0.12",
     "electron-vite": "^4.0.1",
     "eslint": "^9.36.0",
@@ -64,6 +64,6 @@
     "react-dom": "^19.1.1",
     "rollup-plugin-polyfill-node": "^0.13.0",
     "typescript": "^5.9.2",
-    "vite": "^7.1.6"
+    "vite": "^7.1.7"
   }
 }
