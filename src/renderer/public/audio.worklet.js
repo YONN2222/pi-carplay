@@ -1,90 +1,121 @@
 "use strict";
 
-// WebAudio's render quantum size.
+declare const currentTime: number;
+declare function registerProcessor(name: string, ctor: any): void;
+declare class AudioWorkletProcessor {
+  readonly port: MessagePort;
+  constructor(options?: any);
+}
+
 const RENDER_QUANTUM_FRAMES = 128;
 const RING_POINTERS_SIZE = 8;
-/**
- * Taken from https://github.com/gozmanyoni/pcm-ringbuf-player - needs to be seperated here and hosted as a public resource otherwise electron is not happy
- *
- * A Reader class used by this worklet to read from a Adapted from a SharedArrayBuffer written to by ringbuf.js on the main thread, Adapted from https://github.com/padenot/ringbuf.js
- * MPL-2.0 License (see RingBuffer_LICENSE.txt)
- *
- * @author padenot
- */
+const START_QUANTA = 3;
+
 class RingBuffReader {
-    constructor(buffer) {
-        const storageSize = (buffer.byteLength - RING_POINTERS_SIZE) / Int16Array.BYTES_PER_ELEMENT;
-        this.storage = new Int16Array(buffer, RING_POINTERS_SIZE, storageSize);
-        // matching capacity and R/W pointers defined in ringbuf.js
-        this.writePointer = new Uint32Array(buffer, 0, 1);
-        this.readPointer = new Uint32Array(buffer, 4, 1);
-    }
-    readTo(array) {
-        const { readPos, available } = this.getReadInfo();
-        if (available === 0) {
-            return 0;
-        }
-        const readLength = Math.min(available, array.length);
-        const first = Math.min(this.storage.length - readPos, readLength);
-        const second = readLength - first;
-        this.copy(this.storage, readPos, array, 0, first);
-        this.copy(this.storage, 0, array, first, second);
-        Atomics.store(this.readPointer, 0, (readPos + readLength) % this.storage.length);
-        return readLength;
-    }
-    getReadInfo() {
-        const readPos = Atomics.load(this.readPointer, 0);
-        const writePos = Atomics.load(this.writePointer, 0);
-        const available = (writePos + this.storage.length - readPos) % this.storage.length;
-        return {
-            readPos,
-            writePos,
-            available,
-        };
-    }
-    copy(input, offset_input, output, offset_output, size) {
-        for (let i = 0; i < size; i++) {
-            output[offset_output + i] = input[offset_input + i];
-        }
-    }
+  private storage: Int16Array;
+  private writePointer: Uint32Array;
+  private readPointer: Uint32Array;
+
+  constructor(buffer: SharedArrayBuffer) {
+    const storageSize =
+      (buffer.byteLength - RING_POINTERS_SIZE) / Int16Array.BYTES_PER_ELEMENT;
+    this.storage = new Int16Array(buffer, RING_POINTERS_SIZE, storageSize);
+    this.writePointer = new Uint32Array(buffer, 0, 1);
+    this.readPointer = new Uint32Array(buffer, 4, 1);
+  }
+
+  readTo(target: Int16Array): number {
+    const { readPos, available } = this.getReadInfo();
+    if (available === 0) return 0;
+
+    const readLength = Math.min(available, target.length);
+    const first = Math.min(this.storage.length - readPos, readLength);
+    const second = readLength - first;
+
+    target.set(this.storage.subarray(readPos, readPos + first), 0);
+    if (second > 0) target.set(this.storage.subarray(0, second), first);
+
+    Atomics.store(this.readPointer, 0, (readPos + readLength) % this.storage.length);
+    return readLength;
+  }
+
+  getReadInfo() {
+    const readPos = Atomics.load(this.readPointer, 0);
+    const writePos = Atomics.load(this.writePointer, 0);
+    const available = (writePos + this.storage.length - readPos) % this.storage.length;
+    return { readPos, writePos, available };
+  }
 }
+
 class PCMWorkletProcessor extends AudioWorkletProcessor {
-    constructor(options) {
-        super();
-        this.underflowing = false;
-        const { sab, channels } = options.processorOptions;
-        this.channels = channels;
-        this.reader = new RingBuffReader(sab);
-        this.readerOutput = new Int16Array(RENDER_QUANTUM_FRAMES * channels);
-    }
-    toFloat32(value) {
-        return value / 32768;
-    }
-    process(_, outputs) {
-        const outputChannels = outputs[0];
-        const { available } = this.reader.getReadInfo();
-        if (available < this.readerOutput.length) {
-            if (!this.underflowing) {
-                console.debug('UNDERFLOW', available);
-            }
-            this.underflowing = true;
-            return true;
-        }
-        this.reader.readTo(this.readerOutput);
-        for (let i = 0; i < this.readerOutput.length; i++) {
-            // split interleaved audio as it comes from the dongle by splitting it across the channels
-            if (this.channels === 2) {
-                for (let channel = 0; channel < this.channels; channel++) {
-                    outputChannels[channel][i] = this.toFloat32(this.readerOutput[2 * i + channel]);
-                }
-            }
-            else {
-                outputChannels[0][i] = this.toFloat32(this.readerOutput[i]);
-            }
-        }
-        this.underflowing = false;
+  private channels: number;
+  private reader: RingBuffReader;
+  private readerOutput: Int16Array;
+  private primed = false;
+
+  constructor(options: any) {
+    super();
+    const { sab, channels } = options.processorOptions as {
+      sab: SharedArrayBuffer;
+      channels: number;
+    };
+    this.channels = channels;
+    this.reader = new RingBuffReader(sab);
+    this.readerOutput = new Int16Array(RENDER_QUANTUM_FRAMES * channels);
+  }
+
+  private toFloat32(s16: number) {
+    return s16 / 32768;
+  }
+
+  process(_inputs: Float32Array[][], outputs: Float32Array[][]): boolean {
+    const outputChannels = outputs[0];
+    const ch = this.channels;
+    const frames = RENDER_QUANTUM_FRAMES;
+    const needSamples = frames * ch;
+
+    const { available } = this.reader.getReadInfo();
+
+    // preroll
+    if (!this.primed) {
+      if (available >= START_QUANTA * needSamples) {
+        this.primed = true;
+      } else {
+        for (let c = 0; c < outputChannels.length; c++) outputChannels[c].fill(0);
         return true;
+      }
     }
+
+    // not enough data -> silence
+    if (available < needSamples) {
+      for (let c = 0; c < outputChannels.length; c++) outputChannels[c].fill(0);
+      return true;
+    }
+
+    // read one quantum
+    const got = this.reader.readTo(this.readerOutput);
+    if (got < needSamples) {
+      for (let c = 0; c < outputChannels.length; c++) outputChannels[c].fill(0);
+      return true;
+    }
+
+    // deinterleave by frames
+    if (ch === 2) {
+      const L = outputChannels[0];
+      const R = outputChannels[1];
+      for (let f = 0; f < frames; f++) {
+        const i = f * 2;
+        L[f] = this.toFloat32(this.readerOutput[i]);
+        R[f] = this.toFloat32(this.readerOutput[i + 1]);
+      }
+    } else {
+      const M = outputChannels[0];
+      for (let f = 0; f < frames; f++) M[f] = this.toFloat32(this.readerOutput[f]);
+      for (let c = 1; c < outputChannels.length; c++) outputChannels[c].fill(0);
+    }
+
+    return true;
+  }
 }
-registerProcessor('pcm-worklet-processor', PCMWorkletProcessor);
-//# sourceMappingURL=audio.worklet.js.map
+
+registerProcessor("pcm-worklet-processor", PCMWorkletProcessor);
