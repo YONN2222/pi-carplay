@@ -107,9 +107,6 @@ class TouchItem {
     actionB.writeUInt32LE(this.action)
     idB.writeUInt32LE(this.id)
 
-    //const finalX = clamp(10000 * this.x, 0, 10000)
-    //const finalY = clamp(10000 * this.y, 0, 10000)
-
     xB.writeFloatLE(this.x)
     yB.writeFloatLE(this.y)
     const data = Buffer.concat([xB, yB, actionB, idB])
@@ -267,18 +264,24 @@ export class SendBoxSettings extends SendableMessageWithPayload {
   private config: DongleConfig
 
   getPayload(): Buffer {
-    // Intentionally using "syncTime" from now to avoid any drift
-    // & delay between constructor() and getData()
+    const cfg = this.config as any
+    const channel: number =
+      typeof cfg.wifiChannel === 'number' && Number.isFinite(cfg.wifiChannel)
+        ? cfg.wifiChannel
+        : cfg.wifiType === '5ghz'
+          ? 36
+          : 1
 
-    return Buffer.from(
-      JSON.stringify({
-        mediaDelay: this.config.mediaDelay,
-        syncTime: this.syncTime ?? getCurrentTimeInMs(),
-        androidAutoSizeW: this.config.width,
-        androidAutoSizeH: this.config.height,
-      }),
-      'ascii',
-    )
+    const body: any = {
+      mediaDelay: this.config.mediaDelay,
+      syncTime: this.syncTime ?? getCurrentTimeInMs(),
+      androidAutoSizeW: this.config.width,
+      androidAutoSizeH: this.config.height,
+      WiFiChannel: channel,
+      wifiChannel: channel,
+    }
+
+    return Buffer.from(JSON.stringify(body), 'ascii')
   }
 
   constructor(config: DongleConfig, syncTime: number | null = null) {
@@ -336,12 +339,10 @@ export class SendIconConfig extends SendFile {
   }
 }
 
-// Disconnects phone and closes dongle - need to send open command again
 export class SendCloseDongle extends SendableMessage {
   type = MessageType.CloseDongle
 }
 
-// Disconnects phone session - dongle is still open and phone can re-connect
 export class SendDisconnectPhone extends SendableMessage {
   type = MessageType.DisconnectPhone
 }

@@ -1,4 +1,3 @@
-// DongleDriver.ts
 import EventEmitter from 'events'
 import { MessageHeader, HeaderBuildError } from './messages/common.js'
 import { PhoneType } from './messages/readable.js'
@@ -41,6 +40,7 @@ export type DongleConfig = {
   mediaDelay: number
   audioTransferMode: boolean
   wifiType: '2.4ghz' | '5ghz'
+  wifiChannel: number
   micType: 'box' | 'os'
   phoneConfig: Partial<PhoneTypeConfigMap>
 }
@@ -57,9 +57,10 @@ export const DEFAULT_CONFIG: DongleConfig = {
   boxName: 'nodePlay',
   nightMode: true,
   hand: HandDriveType.LHD,
-  mediaDelay: 500,
+  mediaDelay: 1000,
   audioTransferMode: false,
   wifiType: '5ghz',
+  wifiChannel: 36,
   micType: 'os',
   phoneConfig: {
     [PhoneType.CarPlay]: { frameInterval: 5000 },
@@ -168,17 +169,21 @@ export class DongleDriver extends EventEmitter {
       new SendNumber(cfg.hand, FileAddress.HAND_DRIVE_MODE),
       new SendBoolean(true, FileAddress.CHARGE_MODE),
       new SendString(cfg.boxName, FileAddress.BOX_NAME),
+      new SendCommand(cfg.wifiType === '5ghz' ? 'wifi5g' : 'wifi24g'),
       new SendBoxSettings(cfg),
       new SendCommand('wifiEnable'),
-      new SendCommand(cfg.wifiType === '5ghz' ? 'wifi5g' : 'wifi24g'),
       new SendCommand(cfg.micType === 'box' ? 'boxMic' : 'mic'),
       new SendCommand(cfg.audioTransferMode ? 'audioTransferOn' : 'audioTransferOff')
     ]
     if (cfg.androidWorkMode)
       messages.push(new SendBoolean(cfg.androidWorkMode, FileAddress.ANDROID_WORK_MODE))
 
-    await Promise.all(messages.map(this.send))
-    setTimeout(() => this.send(new SendCommand('wifiConnect')), 1000)
+    for (const m of messages) {
+      await this.send(m)
+      await new Promise(r => setTimeout(r, 120))
+    }
+
+    setTimeout(() => this.send(new SendCommand('wifiConnect')), 600)
 
     this.readLoop()
     this._heartbeatInterval = setInterval(() => this.send(new HeartBeat()), 2000)

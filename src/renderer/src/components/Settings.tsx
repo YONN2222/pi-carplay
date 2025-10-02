@@ -66,8 +66,23 @@ const Settings: React.FC<SettingsProps> = ({ settings }) => {
     'width', 'height', 'fps', 'dpi', 'format', 'mediaDelay', 'phoneWorkMode', 'wifiType', 'micType', 'audioTransferMode'
   ]
 
+  const getValidWifiChannel = (wifiType: ExtraConfig['wifiType'], ch?: number): number => {
+    if (wifiType === '5ghz') {
+      return typeof ch === 'number' && ch >= 36 ? ch : 36
+    }
+    return typeof ch === 'number' && ch > 0 && ch < 36 ? ch : 6
+  }
+
   const settingsChange = (key: keyof ExtraConfig, value: any) => {
-    const updated = { ...activeSettings, [key]: value }
+    let updated: ExtraConfig = { ...activeSettings, [key]: value }
+
+    if (key === 'wifiType') {
+      updated = {
+        ...updated,
+        wifiChannel: getValidWifiChannel(value as ExtraConfig['wifiType'], updated.wifiChannel)
+      }
+    }
+
     setActiveSettings(updated)
 
     if (['audioVolume', 'navVolume'].includes(key)) {
@@ -232,11 +247,33 @@ const Settings: React.FC<SettingsProps> = ({ settings }) => {
           </Grid>
 
           <Grid size={{ xs: 3 }} sx={{ minWidth: 140, mx: 2, display: 'flex', justifyContent: 'center' }}>
-            <FormControl fullWidth><FormLabel>WIFI TYPE</FormLabel><RadioGroup value={activeSettings.wifiType} onChange={e => settingsChange('wifiType', e.target.value)}><Stack direction="column"><FormControlLabel value="2.4ghz" control={<Radio />} label="2.4G" /><FormControlLabel value="5ghz" control={<Radio />} label="5G" /></Stack></RadioGroup></FormControl>
+            <FormControl fullWidth>
+              <FormLabel>WIFI TYPE</FormLabel>
+              <RadioGroup
+                value={activeSettings.wifiType}
+                onChange={e => settingsChange('wifiType', e.target.value)}
+              >
+                <Stack direction="column">
+                  <FormControlLabel value="2.4ghz" control={<Radio />} label="2.4G" />
+                  <FormControlLabel value="5ghz" control={<Radio />} label="5G" />
+                </Stack>
+              </RadioGroup>
+            </FormControl>
           </Grid>
 
           <Grid size={{ xs: 3 }} sx={{ minWidth: 140, mx: 2, display: 'flex', justifyContent: 'center' }}>
-            <FormControl fullWidth><FormLabel>MICROPHONE</FormLabel><RadioGroup value={activeSettings.micType} onChange={e => settingsChange('micType', e.target.value)}><Stack direction="column"><FormControlLabel value="os" control={<Radio />} label={<Typography noWrap>OS: {micLabel}</Typography>} /><FormControlLabel value="box" control={<Radio />} label="BOX" /></Stack></RadioGroup></FormControl>
+            <FormControl fullWidth>
+              <FormLabel>MICROPHONE</FormLabel>
+              <RadioGroup
+                value={activeSettings.micType}
+                onChange={e => settingsChange('micType', e.target.value)}
+              >
+                <Stack direction="column">
+                  <FormControlLabel value="os" control={<Radio />} label={<Typography noWrap>OS: {micLabel}</Typography>} />
+                  <FormControlLabel value="box" control={<Radio />} label="BOX" />
+                </Stack>
+              </RadioGroup>
+            </FormControl>
           </Grid>
 
           {cameras.length > 0 && renderCameras()}
@@ -269,9 +306,30 @@ const Settings: React.FC<SettingsProps> = ({ settings }) => {
 
       {isResetting && <Box display="flex" justifyContent="center" sx={{ mt: 2 }}><CircularProgress /></Box>}
 
-      <Dialog open={!!resetMessage} onClose={handleClosePopup}><DialogTitle>Reset Status</DialogTitle><DialogContent sx={{ textAlign: 'center' }}><Typography variant="body1" sx={{ mb: 2 }}>{resetMessage}</Typography><Box display="flex" justifyContent="center"><Button variant="outlined" onClick={handleClosePopup}>Close{closeCountdown > 0 ? ` (${closeCountdown})` : ''}</Button></Box></DialogContent></Dialog>
+      <Dialog open={!!resetMessage} onClose={handleClosePopup}>
+        <DialogTitle>Reset Status</DialogTitle>
+        <DialogContent sx={{ textAlign: 'center' }}>
+          <Typography variant="body1" sx={{ mb: 2 }}>{resetMessage}</Typography>
+          <Box display="flex" justifyContent="center">
+            <Button variant="outlined" onClick={handleClosePopup}>
+              Close{closeCountdown > 0 ? ` (${closeCountdown})` : ''}
+            </Button>
+          </Box>
+        </DialogContent>
+      </Dialog>
 
-      <Dialog open={openBindings} TransitionComponent={Transition} keepMounted PaperProps={{ sx: { minHeight: '80%', minWidth: '80%' } }} onClose={() => setOpenBindings(false)}><DialogTitle>Key Bindings</DialogTitle><DialogContent><KeyBindings settings={activeSettings} updateKey={settingsChange} /></DialogContent></Dialog>
+      <Dialog
+        open={openBindings}
+        TransitionComponent={Transition}
+        keepMounted
+        PaperProps={{ sx: { minHeight: '80%', minWidth: '80%' } }}
+        onClose={() => setOpenBindings(false)}
+      >
+        <DialogTitle>Key Bindings</DialogTitle>
+        <DialogContent>
+          <KeyBindings settings={activeSettings} updateKey={settingsChange} />
+        </DialogContent>
+      </Dialog>
     </Box>
   )
 }

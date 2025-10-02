@@ -335,7 +335,9 @@ function saveSettings(settings: ExtraConfig) {
         iBoxVersion: +settings.iBoxVersion,
         phoneWorkMode: +settings.phoneWorkMode,
         packetMax: +settings.packetMax,
-        mediaDelay: +settings.mediaDelay
+        mediaDelay: +settings.mediaDelay,
+        wifiType: settings.wifiType,
+        wifiChannel: settings.wifiChannel,
       },
       null,
       2
