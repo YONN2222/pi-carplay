@@ -61,6 +61,7 @@ export class SendTouch extends SendableMessageWithPayload {
     const xB = Buffer.alloc(4)
     const yB = Buffer.alloc(4)
     const flags = Buffer.alloc(4)
+
     actionB.writeUInt32LE(this.action)
 
     const finalX = clamp(10000 * this.x, 0, 10000)
@@ -68,8 +69,8 @@ export class SendTouch extends SendableMessageWithPayload {
 
     xB.writeUInt32LE(finalX)
     yB.writeUInt32LE(finalY)
-    const data = Buffer.concat([actionB, xB, yB, flags])
-    return data
+
+    return Buffer.concat([actionB, xB, yB, flags])
   }
 
   constructor(x: number, y: number, action: TouchAction) {
@@ -100,33 +101,38 @@ class TouchItem {
   }
 
   getPayload(): Buffer {
-    const actionB = Buffer.alloc(4)
     const xB = Buffer.alloc(4)
     const yB = Buffer.alloc(4)
+    const actionB = Buffer.alloc(4)
     const idB = Buffer.alloc(4)
-    actionB.writeUInt32LE(this.action)
-    idB.writeUInt32LE(this.id)
 
     xB.writeFloatLE(this.x)
     yB.writeFloatLE(this.y)
-    const data = Buffer.concat([xB, yB, actionB, idB])
-    return data
+    actionB.writeUInt32LE(this.action)
+    idB.writeUInt32LE(this.id)
+
+    return Buffer.concat([xB, yB, actionB, idB])
   }
 }
+
+export type MultiTouchPoint = {
+  id: number
+  x: number
+  y: number
+  action: MultiTouchAction
+}
+
 export class SendMultiTouch extends SendableMessageWithPayload {
   type = MessageType.MultiTouch
   touches: TouchItem[]
 
-  getPayload(): Buffer {
-    const data = Buffer.concat(this.touches.map(i => i.getPayload()))
-    return data
+  constructor(points: MultiTouchPoint[]) {
+    super()
+    this.touches = points.map(p => new TouchItem(p.x, p.y, p.action, p.id))
   }
 
-  constructor(touchData: { x: number; y: number; action: MultiTouchAction }[]) {
-    super()
-    this.touches = touchData.map(({ x, y, action }, index) => {
-      return new TouchItem(x, y, action, index)
-    })
+  getPayload(): Buffer {
+    return Buffer.concat(this.touches.map(i => i.getPayload()))
   }
 }
 
@@ -153,9 +159,7 @@ export class SendFile extends SendableMessageWithPayload {
   content: Buffer
   fileName: string
 
-  private getFileName = (name: string) => {
-    return Buffer.from(name + '\0', 'ascii')
-  }
+  private getFileName = (name: string) => Buffer.from(name + '\0', 'ascii')
 
   private getLength = (data: Buffer) => {
     const buffer = Buffer.alloc(4)
@@ -167,9 +171,7 @@ export class SendFile extends SendableMessageWithPayload {
     const newFileName = this.getFileName(this.fileName)
     const nameLength = this.getLength(newFileName)
     const contentLength = this.getLength(this.content)
-    const message = [nameLength, newFileName, contentLength, this.content]
-    const data = Buffer.concat(message)
-    return data
+    return Buffer.concat([nameLength, newFileName, contentLength, this.content])
   }
 
   constructor(content: Buffer, fileName: string) {

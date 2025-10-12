@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron'
 import { ExtraConfig } from '../main/Globals'
+import type { MultiTouchPoint } from '../main/carplay/messages/sendable'
 
 type ApiCallback<T = any> = (event: IpcRendererEvent, ...args: T[]) => void
 
@@ -76,6 +77,8 @@ const api = {
     sendFrame: () => ipcRenderer.invoke('carplay-sendframe'),
     sendTouch: (x: number, y: number, action: number) =>
       ipcRenderer.send('carplay-touch', { x, y, action }),
+    sendMultiTouch: (points: MultiTouchPoint[]) =>
+      ipcRenderer.send('carplay-multi-touch', points),
     sendKeyCommand: (key: string) => ipcRenderer.send('carplay-key-command', key),
     onEvent: (callback: ApiCallback<any>) => ipcRenderer.on('carplay-event', callback),
 

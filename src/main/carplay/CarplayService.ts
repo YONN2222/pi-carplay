@@ -10,6 +10,7 @@ import {
   Command,
   SendCommand,
   SendTouch,
+  SendMultiTouch,
   SendAudio,
   DongleDriver,
   DongleConfig,
@@ -184,9 +185,39 @@ export class CarplayService {
     ipcMain.handle('carplay-start', async () => this.start())
     ipcMain.handle('carplay-stop', async () => this.stop())
     ipcMain.handle('carplay-sendframe', async () => this.driver.send(new SendCommand('frame')))
-    ipcMain.on('carplay-touch', (_, data) => {
-      this.driver.send(new SendTouch(data.x, data.y, data.action))
+
+    ipcMain.on('carplay-touch', (_evt, data: { x: number; y: number; action: number }) => {
+      try {
+        this.driver.send(new SendTouch(data.x, data.y, data.action))
+      } catch (e) {
+        console.error('sendTouch failed', e)
+      }
     })
+
+    type MultiTouchPoint = { id: number; x: number; y: number; action: number }
+    const to01 = (v: any) => {
+      const n = +v; if (!Number.isFinite(n)) return 0
+      return n < 0 ? 0 : n > 1 ? 1 : n
+    }
+    const ONE_BASED_IDS = false
+
+    ipcMain.on('carplay-multi-touch', (_evt, points: MultiTouchPoint[]) => {
+      try {
+        if (!Array.isArray(points) || points.length === 0) return
+
+        const safe = points.map(p => ({
+          id: (p.id | 0) + (ONE_BASED_IDS ? 1 : 0),
+          x: to01(p.x),
+          y: to01(p.y),
+          action: p.action | 0,
+        }))
+
+        this.driver.send(new SendMultiTouch(safe))
+      } catch (e) {
+        console.error('sendMultiTouch failed', e)
+      }
+    })
+
     ipcMain.on('carplay-key-command', (_, command) => {
       this.driver.send(new SendCommand(command))
     })
@@ -250,7 +281,7 @@ export class CarplayService {
     } catch (err) {
       try {
         await this.webUsbDevice?.close()
-      } catch {}
+      } catch { }
       this.webUsbDevice = null
       this.started = false
       console.error('[CarplayService] Error during start()', err)
