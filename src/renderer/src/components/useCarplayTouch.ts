@@ -20,9 +20,7 @@ const norm = (el: HTMLElement, cx: number, cy: number) => {
 }
 
 export const useCarplayMultiTouch = (): Handlers => {
-  // pointerId -> slot (stabile MT-IDs)
   const slotByPointerId = useRef(new Map<number, number>())
-  // slot -> position
   const active = useRef(new Map<number, { x: number; y: number }>())
   const freeSlots = useRef<number[]>([])
   const nextSlot = useRef(0)
@@ -65,14 +63,12 @@ export const useCarplayMultiTouch = (): Handlers => {
     const el = e.currentTarget as HTMLElement
     const { x, y } = norm(el, e.clientX, e.clientY)
 
-    // Mouse => ST
     if (e.pointerType === 'mouse') {
       mouseDown.current = true
       window.carplay.ipc.sendTouch(x, y, TouchAction.Down)
       return
     }
 
-    // Touch/Pen => MT
     el.setPointerCapture?.(e.pointerId)
     const id = alloc(e.pointerId)
     active.current.set(id, { x, y })
@@ -110,7 +106,6 @@ export const useCarplayMultiTouch = (): Handlers => {
 
     const id = slotByPointerId.current.get(e.pointerId)
     if (id !== undefined) {
-      // Up: noch mit im Frame enthalten (als Up), danach erst entfernen
       active.current.set(id, { x, y })
       const overrides = new Map<number, MultiTouchAction>()
       overrides.set(id, MultiTouchAction.Up)
@@ -124,7 +119,7 @@ export const useCarplayMultiTouch = (): Handlers => {
   const onPointerUp: Handlers['onPointerUp'] = e => finishPointer(e)
   const onPointerCancel: Handlers['onPointerCancel'] = e => finishPointer(e)
   const onLostPointerCapture: Handlers['onLostPointerCapture'] = e => finishPointer(e)
-  const onPointerOut: Handlers['onPointerOut'] = () => {}
+  const onPointerOut: Handlers['onPointerOut'] = () => { }
   const onContextMenu: Handlers['onContextMenu'] = e => e.preventDefault()
 
   return useMemo(
