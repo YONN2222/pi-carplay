@@ -68,7 +68,7 @@ export const DEFAULT_CONFIG: DongleConfig = {
   }
 }
 
-export class DriverStateError extends Error {}
+export class DriverStateError extends Error { }
 
 export class DongleDriver extends EventEmitter {
   private _heartbeatInterval: ReturnType<typeof setInterval> | null = null
@@ -77,6 +77,8 @@ export class DongleDriver extends EventEmitter {
   private _outEP: USBEndpoint | null = null
   private errorCount = 0
   private _closing = false
+  private _started = false
+  private _readerActive = false
 
   static knownDevices = [
     { vendorId: 0x1314, productId: 0x1520 },
@@ -116,12 +118,15 @@ export class DongleDriver extends EventEmitter {
       const res = await dev.transferOut(this._outEP!.endpointNumber, view)
       return res.status === 'ok'
     } catch (err) {
-      console.error('Send error', err)
+      console.error('[DongleDriver] Send error', msg?.constructor?.name, err)
       return false
     }
   }
 
   private async readLoop() {
+    if (this._readerActive) return
+    this._readerActive = true
+
     while (this._device?.opened && !this._closing) {
       if (this.errorCount >= MAX_ERROR_COUNT) {
         await this.close()
@@ -148,20 +153,30 @@ export class DongleDriver extends EventEmitter {
         }
 
         const msg = header.toMessage(extra)
-        if (msg) this.emit('message', msg)
+        if (msg) {
+          this.emit('message', msg)
+          if (this.errorCount !== 0) this.errorCount = 0
+        }
       } catch (err) {
         if (this._closing) break
-        console.error('readLoop error', err)
+        console.error('[DongleDriver] readLoop error', err)
         this.errorCount++
       }
     }
+
+    this._readerActive = false
   }
 
   start = async (cfg: DongleConfig) => {
     if (!this._device) throw new DriverStateError('initialise() first')
     if (!this._device.opened) return
+    if (this._started) return
 
     this.errorCount = 0
+    this._started = true
+
+    if (!this._readerActive) this.readLoop()
+
     const messages: SendableMessage[] = [
       new SendNumber(cfg.dpi, FileAddress.DPI),
       new SendOpen(cfg),
@@ -180,17 +195,17 @@ export class DongleDriver extends EventEmitter {
 
     for (const m of messages) {
       await this.send(m)
-      await new Promise(r => setTimeout(r, 120))
+      await new Promise((r) => setTimeout(r, 120))
     }
 
     setTimeout(() => this.send(new SendCommand('wifiConnect')), 600)
 
-    this.readLoop()
+    if (this._heartbeatInterval) clearInterval(this._heartbeatInterval)
     this._heartbeatInterval = setInterval(() => this.send(new HeartBeat()), 2000)
   }
 
   close = async () => {
-    if (!this._device) return
+    if (!this._device && !this._readerActive && !this._started) return
 
     this._closing = true
     if (this._heartbeatInterval) {
@@ -198,10 +213,10 @@ export class DongleDriver extends EventEmitter {
       this._heartbeatInterval = null
     }
 
-    if (process.platform === 'darwin') await new Promise((r) => setTimeout(r, 50))
-
     try {
-      await this._device.close()
+      if (this._device && this._device.opened) {
+        await this._device.close()
+      }
     } catch (err) {
       console.warn('device.close() failed', err)
     }
@@ -209,6 +224,8 @@ export class DongleDriver extends EventEmitter {
     this._device = null
     this._inEP = null
     this._outEP = null
+    this._started = false
+    this._readerActive = false
     this._closing = false
   }
 }
