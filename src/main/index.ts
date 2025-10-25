@@ -119,7 +119,7 @@ app.on('before-quit', async (e) => {
   } catch (err) {
     console.warn('Error while quitting:', err)
   } finally {
-    app.exit(0)
+    setImmediate(() => app.quit())
   }
 })
 
@@ -358,7 +358,7 @@ async function installOnMac(url: string): Promise<void> {
   await installFromDmg(tmpFile)
   sendUpdateEvent({ phase: 'relaunching' })
   app.relaunch()
-  app.exit(0)
+  setImmediate(() => app.quit())
 }
 
 // Window
