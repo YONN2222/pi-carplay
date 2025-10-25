@@ -132,8 +132,8 @@ export class RendererWorker {
       )
     }
 
-    // Linux: hw -> sw & Darwin: hw -> sw
-    const selectOrder: ('hw' | 'sw')[] = isLinux ? ['hw', 'sw'] : ['sw', 'hw']
+    const preferHW = this.useHardware ?? true
+    const selectOrder: ('hw'|'sw')[] = preferHW ? ['hw','sw'] : ['sw','hw']
 
     for (const mode of selectOrder) {
       for (const r of rendererPriority) {
