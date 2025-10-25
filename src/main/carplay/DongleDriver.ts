@@ -75,6 +75,7 @@ export class DongleDriver extends EventEmitter {
   private _device: USBDevice | null = null
   private _inEP: USBEndpoint | null = null
   private _outEP: USBEndpoint | null = null
+  private _ifaceNumber: number | null = null
   private errorCount = 0
   private _closing = false
   private _started = false
@@ -84,6 +85,12 @@ export class DongleDriver extends EventEmitter {
     { vendorId: 0x1314, productId: 0x1520 },
     { vendorId: 0x1314, productId: 0x1521 }
   ]
+
+  private sleep(ms: number) { return new Promise<void>((r) => setTimeout(r, ms)) }
+  private async waitForReaderStop(timeoutMs = 500) {
+    const t0 = Date.now()
+    while (this._readerActive && Date.now() - t0 < timeoutMs) await this.sleep(10)
+  }
 
   initialise = async (device: USBDevice) => {
     if (this._device) return
@@ -96,12 +103,18 @@ export class DongleDriver extends EventEmitter {
       const cfg = device.configuration
       if (!cfg) throw new DriverStateError('Device has no configuration')
 
-      const { interfaceNumber, alternate } = cfg.interfaces[0]
-      this._inEP = alternate.endpoints.find((e) => e.direction === 'in')!
-      this._outEP = alternate.endpoints.find((e) => e.direction === 'out')!
-      if (!this._inEP || !this._outEP) throw new DriverStateError('Endpoints missing')
+      const intf = cfg.interfaces[0]
+      if (!intf) throw new DriverStateError('No interface 0')
 
-      await device.claimInterface(interfaceNumber)
+      this._ifaceNumber = intf.interfaceNumber
+      await device.claimInterface(this._ifaceNumber)
+
+      const alt = intf.alternate
+      if (!alt) throw new DriverStateError('No active alternate on interface')
+
+      this._inEP = alt.endpoints.find((e) => e.direction === 'in') || null
+      this._outEP = alt.endpoints.find((e) => e.direction === 'out') || null
+      if (!this._inEP || !this._outEP) throw new DriverStateError('Endpoints missing')
     } catch (err) {
       await this.close()
       throw err
@@ -110,7 +123,7 @@ export class DongleDriver extends EventEmitter {
 
   send = async (msg: SendableMessage): Promise<boolean> => {
     const dev = this._device
-    if (!dev || !dev.opened) return false
+    if (!dev || !dev.opened || this._closing) return false
 
     try {
       const buf = msg.serialise()
@@ -135,19 +148,17 @@ export class DongleDriver extends EventEmitter {
       }
 
       try {
-        const headerBuf = (
-          await this._device.transferIn(this._inEP!.endpointNumber, MessageHeader.dataLength)
-        )?.data?.buffer
+        const headerRes = await this._device.transferIn(this._inEP!.endpointNumber, MessageHeader.dataLength)
         if (this._closing) break
+        const headerBuf = headerRes?.data?.buffer
         if (!headerBuf) throw new HeaderBuildError('Empty header')
 
         const header = MessageHeader.fromBuffer(Buffer.from(headerBuf))
         let extra: Buffer | undefined
         if (header.length) {
-          const extraBuf = (
-            await this._device.transferIn(this._inEP!.endpointNumber, header.length)
-          )?.data?.buffer
+          const extraRes = await this._device.transferIn(this._inEP!.endpointNumber, header.length)
           if (this._closing) break
+          const extraBuf = extraRes?.data?.buffer
           if (!extraBuf) throw new Error('Failed to read extra data')
           extra = Buffer.from(extraBuf)
         }
@@ -175,7 +186,7 @@ export class DongleDriver extends EventEmitter {
     this.errorCount = 0
     this._started = true
 
-    if (!this._readerActive) this.readLoop()
+    if (!this._readerActive) void this.readLoop()
 
     const messages: SendableMessage[] = [
       new SendNumber(cfg.dpi, FileAddress.DPI),
@@ -195,13 +206,13 @@ export class DongleDriver extends EventEmitter {
 
     for (const m of messages) {
       await this.send(m)
-      await new Promise((r) => setTimeout(r, 120))
+      await this.sleep(120)
     }
 
-    setTimeout(() => this.send(new SendCommand('wifiConnect')), 600)
+    setTimeout(() => void this.send(new SendCommand('wifiConnect')), 600)
 
     if (this._heartbeatInterval) clearInterval(this._heartbeatInterval)
-    this._heartbeatInterval = setInterval(() => this.send(new HeartBeat()), 2000)
+    this._heartbeatInterval = setInterval(() => void this.send(new HeartBeat()), 2000)
   }
 
   close = async () => {
@@ -215,15 +226,33 @@ export class DongleDriver extends EventEmitter {
 
     try {
       if (this._device && this._device.opened) {
-        await this._device.close()
+        await this.waitForReaderStop(400)
+
+        if (this._ifaceNumber != null) {
+          try { await this._device.releaseInterface(this._ifaceNumber) } catch (e) {
+            console.warn('releaseInterface() failed', e)
+          }
+        }
+
+        try {
+          await this._device.close()
+        } catch (e: any) {
+          const msg = String(e?.message || e)
+          if (/pending request/i.test(msg)) {
+            console.warn('device.close(): pending request -> ignoring for shutdown')
+          } else {
+            console.warn('device.close() failed', e)
+          }
+        }
       }
     } catch (err) {
-      console.warn('device.close() failed', err)
+      console.warn('close() outer error', err)
     }
 
     this._device = null
     this._inEP = null
     this._outEP = null
+    this._ifaceNumber = null
     this._started = false
     this._readerActive = false
     this._closing = false
