@@ -11,19 +11,22 @@ export class USBService {
   private lastDongleState: boolean = false
   private stopped = false
 
+  private delay(ms: number) { return new Promise<void>(r => setTimeout(r, ms)) }
+
   public async stop(): Promise<void> {
     if (this.stopped) return
     this.stopped = true
-    usb.removeAllListeners('attach')
-    usb.removeAllListeners('detach')
-    usb.unrefHotplugEvents()
+    try { usb.removeAllListeners('attach') } catch { }
+    try { usb.removeAllListeners('detach') } catch { }
+    try { usb.unrefHotplugEvents() } catch { }
+    await this.delay(80)
     console.log('[USBService] Monitoring stopped')
   }
 
   constructor(private carplay: CarplayService) {
     this.registerIpcHandlers()
     this.listenToUsbEvents()
-    usb.unrefHotplugEvents()
+    try { usb.unrefHotplugEvents() } catch { }
 
     const device = getDeviceList().find(this.isDongle)
     if (device) {
@@ -138,8 +141,8 @@ export class USBService {
   private async getDongleInfo(device: Device) {
     const fwVersion = device.deviceDescriptor.bcdDevice
       ? `${device.deviceDescriptor.bcdDevice >> 8}.${(device.deviceDescriptor.bcdDevice & 0xff)
-          .toString()
-          .padStart(2, '0')}`
+        .toString()
+        .padStart(2, '0')}`
       : 'Unknown'
 
     let serialNumber = ''
@@ -159,9 +162,7 @@ export class USBService {
       productName = await this.tryGetStringDescriptor(device, device.deviceDescriptor.iProduct)
       device.close()
     } catch (e) {
-      try {
-        device.close()
-      } catch {}
+      try { device.close() } catch { }
     }
 
     return {
@@ -252,7 +253,7 @@ export class USBService {
       await new Promise<void>((resolve, reject) => {
         dongle.reset((err) => {
           if (err) {
-            const msg = String(err.message ?? err)
+            const msg = String((err as any)?.message ?? err)
             if (
               msg.includes('LIBUSB_ERROR_NOT_FOUND') ||
               msg.includes('LIBUSB_ERROR_NO_DEVICE') ||
@@ -280,11 +281,7 @@ export class USBService {
       this.notifyReset('usb-reset-done', false)
       return false
     } finally {
-      try {
-        if (opened) dongle.close()
-      } catch (e) {
-        console.warn('[USB] Failed to close dongle after reset:', e)
-      }
+      try { if (opened) dongle.close() } catch (e) { console.warn('[USB] Failed to close dongle after reset:', e) }
     }
   }
 }

@@ -66,8 +66,23 @@ const Settings: React.FC<SettingsProps> = ({ settings }) => {
     'width', 'height', 'fps', 'dpi', 'format', 'mediaDelay', 'phoneWorkMode', 'wifiType', 'micType', 'audioTransferMode'
   ]
 
+  const getValidWifiChannel = (wifiType: ExtraConfig['wifiType'], ch?: number): number => {
+    if (wifiType === '5ghz') {
+      return typeof ch === 'number' && ch >= 36 ? ch : 36
+    }
+    return typeof ch === 'number' && ch > 0 && ch < 36 ? ch : 6
+  }
+
   const settingsChange = (key: keyof ExtraConfig, value: any) => {
-    const updated = { ...activeSettings, [key]: value }
+    let updated: ExtraConfig = { ...activeSettings, [key]: value }
+
+    if (key === 'wifiType') {
+      updated = {
+        ...updated,
+        wifiChannel: getValidWifiChannel(value as ExtraConfig['wifiType'], updated.wifiChannel)
+      }
+    }
+
     setActiveSettings(updated)
 
     if (['audioVolume', 'navVolume'].includes(key)) {
@@ -152,7 +167,6 @@ const Settings: React.FC<SettingsProps> = ({ settings }) => {
     window.carplay.usb.listenForEvents(usbHandler)
   }, [])
 
-
   const renderField = (label: string, key: keyof ExtraConfig, min?: number, max?: number) => (
     <Grid size={{ xs: 3 }} key={String(key)}>
       <TextField
@@ -181,21 +195,23 @@ const Settings: React.FC<SettingsProps> = ({ settings }) => {
   )
 
   const renderCameras = () => (
-    <Grid size={{ xs: 6 }}>
+    <Grid size={{ xs: 'auto' }} sx={{ minWidth: 0, maxWidth: '100%' }}>
       <FormControl fullWidth>
-        <FormLabel>Camera</FormLabel>
+        <FormLabel>CAMERA</FormLabel>
         <RadioGroup
           value={activeSettings.camera}
           onChange={e => settingsChange('camera', e.target.value)}
         >
-          {cameras.map(cam => (
-            <FormControlLabel
-              key={cam.deviceId}
-              value={cam.deviceId}
-              control={<Radio />}
-              label={cam.label || 'Camera'}
-            />
-          ))}
+          <Stack direction="column" sx={{ maxHeight: 220, overflowY: 'auto' }}>
+            {cameras.map(cam => (
+              <FormControlLabel
+                key={cam.deviceId}
+                value={cam.deviceId}
+                control={<Radio />}
+                label={cam.label || 'Camera'}
+              />
+            ))}
+          </Stack>
         </RadioGroup>
       </FormControl>
     </Grid>
@@ -212,7 +228,7 @@ const Settings: React.FC<SettingsProps> = ({ settings }) => {
         <Grid container spacing={2} sx={{ px: 1 }}>
           {renderField('WIDTH', 'width', 800)}
           {renderField('HEIGHT', 'height', 480)}
-          {renderField('FPS', 'fps', 10)}
+          {renderField('FPS', 'fps', 60)}
           {renderField('DPI', 'dpi')}
           {renderField('FORMAT', 'format')}
           {renderField('IBOX VERSION', 'iBoxVersion')}
@@ -220,9 +236,19 @@ const Settings: React.FC<SettingsProps> = ({ settings }) => {
           {renderField('PHONE WORK MODE', 'phoneWorkMode')}
           {renderSliderField('AUDIO VOLUME', 'audioVolume')}
           {renderSliderField('NAV VOLUME', 'navVolume')}
+        </Grid>
 
-          <Grid size={{ xs: 3 }} sx={{ minWidth: 140, mx: 2, display: 'flex', justifyContent: 'center' }}>
+        {/* Panels row with equal, responsive gaps */}
+        <Grid
+          container
+          wrap="nowrap"
+          alignItems="flex-start"
+          justifyContent="space-between"
+          sx={{ px: 1, mt: 1, gap: 0 }}
+        >
+          <Grid size={{ xs: 'auto' }}>
             <FormControl>
+              <FormLabel>OPTIONS</FormLabel>
               <Stack direction="column" spacing={0.5}>
                 <FormControlLabel control={<Checkbox checked={activeSettings.kiosk} onChange={e => settingsChange('kiosk', e.target.checked)} />} label="KIOSK" />
                 <FormControlLabel control={<Checkbox checked={activeSettings.nightMode} onChange={e => settingsChange('nightMode', e.target.checked)} />} label="DARK MODE" />
@@ -231,12 +257,34 @@ const Settings: React.FC<SettingsProps> = ({ settings }) => {
             </FormControl>
           </Grid>
 
-          <Grid size={{ xs: 3 }} sx={{ minWidth: 140, mx: 2, display: 'flex', justifyContent: 'center' }}>
-            <FormControl fullWidth><FormLabel>WIFI TYPE</FormLabel><RadioGroup value={activeSettings.wifiType} onChange={e => settingsChange('wifiType', e.target.value)}><Stack direction="column"><FormControlLabel value="2.4ghz" control={<Radio />} label="2.4G" /><FormControlLabel value="5ghz" control={<Radio />} label="5G" /></Stack></RadioGroup></FormControl>
+          <Grid size={{ xs: 'auto' }}>
+            <FormControl>
+              <FormLabel>WIFI</FormLabel>
+              <RadioGroup
+                value={activeSettings.wifiType}
+                onChange={e => settingsChange('wifiType', e.target.value)}
+              >
+                <Stack direction="column">
+                  <FormControlLabel value="2.4ghz" control={<Radio />} label="2.4G" />
+                  <FormControlLabel value="5ghz" control={<Radio />} label="5G" />
+                </Stack>
+              </RadioGroup>
+            </FormControl>
           </Grid>
 
-          <Grid size={{ xs: 3 }} sx={{ minWidth: 140, mx: 2, display: 'flex', justifyContent: 'center' }}>
-            <FormControl fullWidth><FormLabel>MICROPHONE</FormLabel><RadioGroup value={activeSettings.micType} onChange={e => settingsChange('micType', e.target.value)}><Stack direction="column"><FormControlLabel value="os" control={<Radio />} label={<Typography noWrap>OS: {micLabel}</Typography>} /><FormControlLabel value="box" control={<Radio />} label="BOX" /></Stack></RadioGroup></FormControl>
+          <Grid size={{ xs: 'auto' }} sx={{ minWidth: 0, maxWidth: '100%' }}>
+            <FormControl fullWidth>
+              <FormLabel>MICROPHONE</FormLabel>
+              <RadioGroup
+                value={activeSettings.micType}
+                onChange={e => settingsChange('micType', e.target.value)}
+              >
+                <Stack direction="column">
+                  <FormControlLabel value="os" control={<Radio />} label={<Typography noWrap>OS: {micLabel}</Typography>} />
+                  <FormControlLabel value="box" control={<Radio />} label="BOX" />
+                </Stack>
+              </RadioGroup>
+            </FormControl>
           </Grid>
 
           {cameras.length > 0 && renderCameras()}
@@ -269,9 +317,30 @@ const Settings: React.FC<SettingsProps> = ({ settings }) => {
 
       {isResetting && <Box display="flex" justifyContent="center" sx={{ mt: 2 }}><CircularProgress /></Box>}
 
-      <Dialog open={!!resetMessage} onClose={handleClosePopup}><DialogTitle>Reset Status</DialogTitle><DialogContent sx={{ textAlign: 'center' }}><Typography variant="body1" sx={{ mb: 2 }}>{resetMessage}</Typography><Box display="flex" justifyContent="center"><Button variant="outlined" onClick={handleClosePopup}>Close{closeCountdown > 0 ? ` (${closeCountdown})` : ''}</Button></Box></DialogContent></Dialog>
+      <Dialog open={!!resetMessage} onClose={handleClosePopup}>
+        <DialogTitle>Reset Status</DialogTitle>
+        <DialogContent sx={{ textAlign: 'center' }}>
+          <Typography variant="body1" sx={{ mb: 2 }}>{resetMessage}</Typography>
+          <Box display="flex" justifyContent="center">
+            <Button variant="outlined" onClick={handleClosePopup}>
+              Close{closeCountdown > 0 ? ` (${closeCountdown})` : ''}
+            </Button>
+          </Box>
+        </DialogContent>
+      </Dialog>
 
-      <Dialog open={openBindings} TransitionComponent={Transition} keepMounted PaperProps={{ sx: { minHeight: '80%', minWidth: '80%' } }} onClose={() => setOpenBindings(false)}><DialogTitle>Key Bindings</DialogTitle><DialogContent><KeyBindings settings={activeSettings} updateKey={settingsChange} /></DialogContent></Dialog>
+      <Dialog
+        open={openBindings}
+        TransitionComponent={Transition}
+        keepMounted
+        PaperProps={{ sx: { minHeight: '80%', minWidth: '80%' } }}
+        onClose={() => setOpenBindings(false)}
+      >
+        <DialogTitle>Key Bindings</DialogTitle>
+        <DialogContent>
+          <KeyBindings settings={activeSettings} updateKey={settingsChange} />
+        </DialogContent>
+      </Dialog>
     </Box>
   )
 }

@@ -98,13 +98,13 @@ export default function FFTSpectrum({ data }: FFTSpectrumProps) {
 
     ctx.strokeStyle = '#555'
     ctx.lineWidth = 0.5
-    ;[0.25, 0.5, 0.75].forEach(f => {
-      const y = usableH * f
-      ctx.beginPath()
-      ctx.moveTo(xOff, y)
-      ctx.lineTo(xOff + specW, y)
-      ctx.stroke()
-    })
+      ;[0.25, 0.5, 0.75].forEach(f => {
+        const y = usableH * f
+        ctx.beginPath()
+        ctx.moveTo(xOff, y)
+        ctx.lineTo(xOff + specW, y)
+        ctx.stroke()
+      })
 
     const freqs = [MIN_FREQ, 100, 500, 1000, 5000, 10000, MAX_FREQ]
     ctx.fillStyle = '#aaa'
@@ -123,7 +123,7 @@ export default function FFTSpectrum({ data }: FFTSpectrumProps) {
       ctx.moveTo(x, 0)
       ctx.lineTo(x, usableH)
       ctx.stroke()
-      const label = freq >= 1000 ? `${freq/1000}k` : `${freq}`
+      const label = freq >= 1000 ? `${freq / 1000}k` : `${freq}`
       ctx.fillText(label, x, usableH + 2)
     })
   }, [dimensions, sampleRate])
@@ -158,10 +158,8 @@ export default function FFTSpectrum({ data }: FFTSpectrumProps) {
         const h = bins[i] * usableH
         const x = xOff + i * barW
         peaks[i] = h > peaks[i] ? h : Math.max(peaks[i] - decay, 0)
-        ctx.filter = 'drop-shadow(2px 2px 4px rgba(0,0,0,0.4))'
         ctx.fillStyle = barColor
         ctx.fillRect(x, usableH - h, barW * 0.8, h)
-        ctx.filter = 'none'
         ctx.fillStyle = peakColor
         ctx.fillRect(x, usableH - peaks[i] - 2, barW * 0.8, 2)
       }

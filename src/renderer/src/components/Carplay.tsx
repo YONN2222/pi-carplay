@@ -7,7 +7,7 @@ import { ExtraConfig } from '../../../main/Globals'
 import { useCarplayStore, useStatusStore } from '../store/store'
 import { InitEvent, Renderer } from './worker/render/RenderEvents'
 import useCarplayAudio from './useCarplayAudio'
-import { useCarplayTouch } from './useCarplayTouch'
+import { useCarplayMultiTouch } from './useCarplayTouch'
 import type { CarPlayWorker, KeyCommand } from './worker/types'
 
 const RETRY_DELAY_MS = 3000
@@ -49,6 +49,7 @@ const Carplay: React.FC<CarplayProps> = ({
   // Refs
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const mainElem = useRef<HTMLDivElement>(null)
+  const videoContainerRef = useRef<HTMLDivElement>(null)
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const hasStartedRef = useRef(false)
   const [renderReady, setRenderReady] = useState(false)
@@ -64,7 +65,7 @@ const Carplay: React.FC<CarplayProps> = ({
   // Render settings
   const preferredRenderer = 'auto' //  'auto' | 'webgl2' | 'webgl' | 'webgpu'
   const reportFps = false
-  const useHardware = true // true => prefere-hardware, false => no-preference hardware->software
+  const useHardware = true
   const useWebRTC = true
 
   // Get Settings
@@ -156,7 +157,7 @@ const Carplay: React.FC<CarplayProps> = ({
 
     window.carplay.ipc.onVideoChunk(handleVideo)
 
-    return () => {}
+    return () => { }
   }, [videoChannel, renderReady])
 
   useEffect(() => {
@@ -175,12 +176,12 @@ const Carplay: React.FC<CarplayProps> = ({
 
     window.carplay.ipc.onAudioChunk(handleAudio)
 
-    return () => {}
+    return () => { }
   }, [micChannel])
 
   // Start CarPlay-Service
   useEffect(() => {
-    ;(async () => {
+    ; (async () => {
       try {
         await window.carplay.ipc.start()
       } catch (err) {
@@ -192,7 +193,8 @@ const Carplay: React.FC<CarplayProps> = ({
   // Audio- and Touch-Hooks
   const { processAudio, getAudioPlayer } = useCarplayAudio(carplayWorker)
 
-  const sendTouchEvent = useCarplayTouch()
+  // Touch-Listener
+  const touchHandlers = useCarplayMultiTouch()
 
   const clearRetryTimeout = useCallback(() => {
     if (retryTimeoutRef.current) {
@@ -304,10 +306,10 @@ const Carplay: React.FC<CarplayProps> = ({
     }
     window.carplay.usb.listenForEvents(usbHandler)
 
-    ;(async () => {
-      const last = await window.carplay.usb.getLastEvent()
-      if (last) usbHandler(null, last)
-    })()
+      ; (async () => {
+        const last = await window.carplay.usb.getLastEvent()
+        if (last) usbHandler(null, last)
+      })()
 
     return () => {
       window.electron?.ipcRenderer.removeListener('usb-event', usbHandler)
@@ -421,17 +423,15 @@ const Carplay: React.FC<CarplayProps> = ({
       )}
       <div
         id="videoContainer"
-        onPointerDown={sendTouchEvent}
-        onPointerMove={sendTouchEvent}
-        onPointerUp={sendTouchEvent}
-        onPointerCancel={sendTouchEvent}
-        onPointerOut={sendTouchEvent}
+        ref={videoContainerRef}
+        {...touchHandlers}
         style={{
           height: '100%',
           width: '100%',
           padding: 0,
           margin: 0,
           display: 'flex',
+          touchAction: 'none',
           visibility: receivingVideo ? 'visible' : 'hidden',
           zIndex: receivingVideo ? 1 : -1
         }}
@@ -441,7 +441,10 @@ const Carplay: React.FC<CarplayProps> = ({
           id="video"
           style={{
             width: receivingVideo ? '100%' : '0',
-            height: receivingVideo ? '100%' : '0'
+            height: receivingVideo ? '100%' : '0',
+            touchAction: 'none',
+            userSelect: 'none',
+            pointerEvents: 'none',
           }}
         />
       </div>
