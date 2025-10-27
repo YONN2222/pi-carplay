@@ -119,4 +119,4 @@ _Apple and CarPlay are trademarks of Apple Inc. This project is not affiliated w
 
 ## License
 
-This project is licensed under the MIT License.
+This project is licensed under the [MIT License](LICENSE).
