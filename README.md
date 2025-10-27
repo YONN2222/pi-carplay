@@ -32,7 +32,7 @@ The `setup-pi.sh` script performs the following tasks:
 4. creates an autostart entry, so the application will launch automatically on boot
 5. creates a desktop shortcut for easy access to the application
 
-*Do not run this script on other Linux distributions.*
+⚠️ ***Do not run this script on other Linux distributions.***
 
 ## Images
 <p align="center">
